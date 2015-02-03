@@ -1,43 +1,82 @@
-
 #goal: model 1 year
-
 from caelum import eere
 from solpy import irradiation
-from loads import simple_profile
+from loads import simple_profile, annual_2014, annual_2013
 import numpy as np
 import matplotlib.pyplot as plt
 import random
 import scipy.stats as stats
 from scipy.interpolate import interp1d
+import sys
+sys.stdout.flush()
+
+#significant = lambda x,figures=3 : round(x,figures-int(np.floor(np.log10(x))))
+def significant(number,figures=3):
+    if number == 0.:
+        return number
+    order = np.ceil(np.log10(abs(number))).astype(int)
+    if order > figures:
+        return int(round(number,figures-order))
+    else:
+        return round(number,figures-order)
 
 def heatmap(list_like):
     mangled_a = []
     for i in range(0, len(list_like), 24):
-          mangled_a.append(list_like[i:i+23])
-          data = np.array(mangled_a)
-          data = np.rot90(data)
+        mangled_a.append(list_like[i:i+23])
+    data = np.array(mangled_a)
+    #data = np.flipud(data)
+    data = np.rot90(data,3)
+    data = np.fliplr(data)
     return data
-
-def g(t, w):
-    PLACE = (24.811468, 89.334329)
-    v = 12.5
-    isc = w/v
-    try:
-        irr = irradiation.irradiation(t,PLACE,t=12.0,array_azimuth=180.0,model='p9')
-        #no pwm
-        #200 w panel 125 w because of no cc
-        i = irr/1000.*isc
-        return v*i
-    except Exception as e:
-        print e
-        return 0
 
 class SimplePV():
     def __init__(self,vnom,imp):
-        self.vmp = vnom*1.2
+        self.voc = vnom*1.2
+        self.vmp = vnom
         self.imp = imp
     def output(self, irr, t_cell=25):
         return self.vmp, self.imp*irr/1000.
+
+class MPPTChargeController():
+    def __init__(self, vnom, imp):
+        self.imp = imp
+        self.vnom = vnom
+        self.vmpp = vnom
+        self.loss = 0
+        self.array = SimplePV(vnom, imp)
+
+    def __call__(self, irr):
+        return self.output(irr)
+
+    def output(self, irr, t_cell = None):
+        v,i = self.array.output(irr)
+        #i = irr/1000. * self.imp
+        w = v*i
+        self.loss += .05*w
+        return v*i*.95
+
+    def losses(self):
+        return self.loss
+
+    def nameplate(self):
+        return self.imp * self.vmpp
+
+    def area(self):
+        return self.nameplate()/1000./.2
+
+    def tox(self):
+        return self.nameplate()*.3
+
+    def co2(self):
+        #41g/kWh
+        #life ~36500 hours of operation
+        #1496.500 kg/kw
+        return 1.496500 * self.nameplate()/1000.
+
+    def cost(self):
+        #assume a fixed cost for charge controller
+        return self.nameplate()*.8+ 10#
 
 class SimpleChargeController():
     def __init__(self, vnom, imp):
@@ -97,7 +136,7 @@ class PVSystem(object):
         return sum([i.output(irr, t_cell) for i in self.shape])
 
     def area(self):
-        return self.p_dc(1000.)/1000./.2
+        return self.p_dc(1000.)/1000./.15
 
     def tox(self):
         return self.p_dc(1000.)*.3
@@ -136,6 +175,10 @@ class Domain(object):
         self.g = []
         self.l = []
         self.d = []
+        self.net_g = []#used generation
+        self.net_l = []#enabled load
+        self.surplus =  0
+        self.shortfall = 0
 
     def __call__(self,record):
         if self.load:
@@ -154,18 +197,27 @@ class Domain(object):
         d = 0
         if self.storage:
             d = g_t - l_t + self.storage
+            self.d.append(d)
+            #todo: i don't like this accounting its currently being tracked 
+            #in storage
+            #useful_g = g - surplus
+            #net_l = l - shortfall
+            #enabled_load = l_t or 0
+            return d
         else:
             d = g_t - l_t
-
-        self.d.append(d)
-        return d
+            self.net_l.append(max(0.,l_t))
+            self.net_g.append(max(0.,l_t))
+            self.surplus += max(0., d)
+            if d < 0:
+                self.shortfall += l_t
+            return d
 
     def STC(self):
         if self.gen:
             return self.gen.p_dc(1000.)
         else:
             return 0.
-
 
     def autonomy(self):
         """this is a hack assumes hour time intervals"""
@@ -174,20 +226,25 @@ class Domain(object):
         return self.storage.capacity/l_med #hours
 
     def eta(self):
-        return sum(self.l)/(sum(self.g)+self.gen.losses())
+        return sum(self.net_l)/(sum(self.g)+self.gen.losses())
 
     def details(self):
-        return {
-        'gen losses (wh)' : round(self.gen.losses(),1),
-        'desired load (wh)' : round(sum(self.l),1),
-        'Autonomy (hours) (Median Load/C)' : round(self.autonomy(),1),
-        'Domain Parts (USD)' : round(self.cost,2),
-        'Domain depletion (USD)' : round(self.depletion,2),
-        'A (m2)' : self.area,
-        'Tox (CTUh)' : self.tox,
-        'CO2 (gCO2 eq)' : self.co2,
-        'eta T (%)' : round(self.eta()*100,1)
+        results ={
+        'gen losses (wh)' : significant(self.gen.losses()),
+        'desired load (wh)' : significant(sum(self.l)),
+        'Autonomy (hours) (Median Load/C)' : significant(self.autonomy()),
+        'Domain Parts (USD)' : significant(self.cost),
+        'Domain depletion (USD)' : significant(self.depletion),
+        'A (m2)' : significant(self.area),
+        'Tox (CTUh)' : significant(self.tox),
+        'CO2 (gCO2 eq)' : significant(self.co2),
+        'eta T (%)' : significant(self.eta()*100)
         }
+        if self.gen:
+            results['STC (w)'] = significant(self.gen.p_dc(1000.))
+        if self.storage:
+            results['capacity (wh)'] = significant(self.storage.capacity)
+        return results
 
     def __getattr__(self,name):
         v = 0
@@ -304,11 +361,11 @@ class IdealStorage(object):
                 self.loss_occurence += 1
 
         if energy == 0:
-            if self.state is 0:
+            if self.state == 0:
                 self.drained_hours += hours
             if self.state == self.capacity:
                 self.full_hours += hours
-            e_delta =0
+            e_delta = 0
 
         self.state_series.append(self.soc())
         return e_delta - energy
@@ -329,17 +386,17 @@ class IdealStorage(object):
         #print '#LOLP'
         soc_series = np.array(self.state_series)
         results ={
-        'shortfall (wh)' : round(self.shortfall,1), # ENS
-        'surplus (wh)' : round(self.surplus,1),
-        'full (hours)' : round(self.full_hours,1),
-        'lolh (hours)' : round(self.drained_hours,1),
-        'throughput (wh)' : round(self.throughput,1),
+        'shortfall (wh)' : significant(self.shortfall), # ENS
+        'surplus (wh)' : significant(self.surplus),
+        'full (hours)' : significant(self.full_hours),
+        'lolh (hours)' : significant(self.drained_hours),
+        'throughput (wh)' : significant(self.throughput),
         'loss occurence (n)' : self.loss_occurence,
         'mean soc (%)' : round(soc_series.mean()*100,1),
         'median soc (%)' : round(np.median(soc_series)*100,1),
-        'storage cost (US)' : round(self.cost(),2),
-        'storage depletion (US)' : round(self.depletion(),2),
-        'Autonomy 1/C (hours)': round(self.autonomy(),1)}
+#        'storage cost (US)' : round(self.cost(),2),
+#        'storage depletion (US)' : round(self.depletion(),2),
+        'Autonomy 1/C (hours)': significant(self.autonomy())}
         return results
 
     def __repr__(self):
@@ -352,10 +409,12 @@ def model(z):
     size = max(size,0)
     PLACE = (24.811468, 89.334329)
     #SHS = Domain(load=DailyLoad([0,18,19,22,21,24],[0,0,1,1,0,0]),
-    SHS = Domain(load=spline_profile,
-            gen=PVSystem([SimpleChargeController(12.5,isc)],PLACE,12.,180.),
+    #SHS = Domain(load=spline_profile,
+    SHS = Domain(load=annual_2013,
+            gen=PVSystem([MPPTChargeController(12.5,isc)],PLACE,24.81,180.),
+            #gen=PVSystem([SimpleChargeController(12.5,isc)],PLACE,12.,180.),
             storage=IdealStorage(size))
-    print '%s Watts, %s Wh' % (pv,size)
+    #print '%s Watts, %s Wh' % (pv,size)
     gen_t = 0
     load_t = 0
     s = []
@@ -366,32 +425,32 @@ def model(z):
     load_shed = 0
     gen_shed = 0
     for i in eere.EPWdata('418830'):
-        g_t = g(i,pv)
+        #g_t = g(i,pv)
         #print g_t, SHS.gen(i)
         l_t = simple_profile(i['datetime'],17)
         d1 = SHS(i)
-        d = g_t - l_t + test_storage
+        #d = g_t - l_t + test_storage
         #print d1,d
-        if d > 0:
-            load_shed += d
-            net_l = l_t - d
-        else:
-            net_l = l_t
+        #if d > 0:
+        #    load_shed += d
+        #    net_l = l_t - d
+        #else:
+        #    net_l = l_t
+        #
+        #if d < 0:
+        #    gen_shed += d
+        #    net_g = g_t + d
+        #else:
+#            net_g = g_t
+#
+#        l.append(net_l)
+#        load_t += net_l
+#        gseries.append(net_g)
+#        gen_t += net_g
 
-        if d < 0:
-            gen_shed += d
-            net_g = g_t + d
-        else:
-            net_g = g_t
-
-        l.append(net_l)
-        load_t += net_l
-        gseries.append(net_g)
-        gen_t += net_g
-
-        delta = g_t - l_t
-        s.append(delta)
-        s_r.append(s_r[-1]+delta)
+#        delta = g_t - l_t
+#        s.append(delta)
+#        s_r.append(s_r[-1]+delta)
 #    print g_t, l_t, delta, test_storage
 
     #print gen_t/1000, 'kwh'
@@ -403,61 +462,72 @@ def model(z):
 
     #print max(s_r)
     #print min(s_r)
-    print 'SHS'
+    #print 'SHS'
     SHS.storage.details()
-    print 'test'
+    #print 'test'
     test_storage.details()
-    print 'total load', sum(SHS.l)
-    print 'total gen', sum(SHS.g)
+    #print 'total load', sum(SHS.l)
+    #print 'total gen', sum(SHS.g)
     #print test_storage
-    print
+    #print
     return SHS #test_storage,gseries,l,s
 
 #def report(storage,gseries,l,s,figname='state'):
-def report(domain,figname='SHS'):
+def report(domain,figname='SHS',title=None):
+    if title is None:
+        title=figname
     storage = domain.storage
     storage.details()
     pv = max(domain.g)
     size = storage.capacity
     fig = plt.figure(figsize=(8.5,11))
     ax = fig.add_subplot(321)
+    ax.set_title('Storage Frequency Histogram')
     pp = np.array(storage.state_series)
     pp.sort()
     fit = stats.norm.pdf(pp, np.mean(pp), np.std(pp))
     ax.hist(storage.state_series,40,normed=True)
     ax.plot(pp,fit)
-    ax.set_title('Storage Frequency Histogram')
     ax2 = fig.add_subplot(322)
-    soc = ax2.imshow(heatmap(storage.state_series),aspect='auto')
-    fig.colorbar(soc)
+    ax2.set_xlabel('day')
+    ax2.set_ylabel('hour')
     ax2.set_title('Storage State of Charge')
+    soc = ax2.imshow(heatmap(storage.state_series),aspect='auto')
+    b1 = fig.colorbar(soc)
+    b1.set_label('%')
     ax3 = fig.add_subplot(323)
-    ax3.set_title('Load Profile')
+    ax3.set_title('Demand Profile')
     lp = ax3.imshow(heatmap(domain.l),aspect='auto')
-    fig.colorbar(lp)
+    b2 =fig.colorbar(lp)
+    b2.set_label('W')
     ax4 = fig.add_subplot(324)
-    ax4.set_title('Gen Profile')
+    ax4.set_title('Generator Output')
     gp = ax4.imshow(heatmap(domain.g),aspect='auto')
-    fig.colorbar(gp)
+    b3 = fig.colorbar(gp)
+    b3.set_label('W')
     ax5 = fig.add_subplot(325)
     ax5.set_title('Battery Constraint')
-    b = ax5.imshow(heatmap(domain.d),aspect='auto')
+    bc = ax5.imshow(heatmap(domain.d),aspect='auto')
     #b = ax5.imshow(heatmap(domain.d),aspect='auto',cmap = plt.cm.Greys_r)
     #b.set_clim(10,-20)
-    fig.colorbar(b)
-    ax6 = fig.add_subplot(326)
+    b4 =fig.colorbar(bc)
+    b4.set_label('W')
     td = domain.details()
     if domain.storage:
         td.update(domain.storage.details())
     s = '\n'.join(['%s:%s' %(k,td[k]) for k in td.iterkeys()])
     print s
+    ax6 = fig.add_subplot(326)
     ax6.text(0.,0.,s,fontsize=8)
     ax6.axis('off')
     print 'PV Array (kW) %s'  % (pv/1000.)
     print 'Storage (wH) %s' % size
+    print 'Loads/Depletion:?'
     system_merit([domain])
-    plt.show()
-    plt.draw()
+    #fig.suptitle(title)
+    fig.tight_layout()
+    #plt.show()
+    #plt.draw()
     fig.savefig('%s.pdf' % figname)
 
 def merit(z):
@@ -474,9 +544,8 @@ def merit(z):
     bcost = size * .125
     gcost = pv*.8
     #print gcost,bcost
-    parts =  gcost + bcost
-    print 'Merit'
-    print '$', parts, 'shortfall', load_shed
+    #print 'Merit'
+    #print '$', domain.cost, 'shortfall', load_shed
     #print parts + load_shed
     #IM.set_array(heatmap(test_storage.state_series))#,aspect='auto')
     #f = plt.figure()
@@ -485,10 +554,10 @@ def merit(z):
     im.get_figure().canvas.flush_events()
     #plt.show(block=False)
     plt.draw()
-    print
+    #print
     #f.canvas.flush_events()
 
-    return parts + load_shed
+    return domain.cost + domain.depletion + load_shed*1 #0.05
 
 def unit_test():
     s = IdealStorage(100)
@@ -510,11 +579,21 @@ def system_merit(domains):
     g = 0
     l = 0
     G = 0
+    C = 0
+    nl =0 #net load
+    eg = 0
     for domain in domains:
         G += domain.STC()
         g += sum(domain.g)
         if domain.gen:
             g += domain.gen.losses()
+        if domain.storage:
+            C += domain.storage.capacity
+            eg += domain.storage.surplus
+            nl += sum(domain.l) + domain.storage.shortfall
+        else:
+            nl += sum(domain.net_l)
+            eg += domain.surplus
         l += sum(domain.l)
         a += domain.area*10000 # cm^2
         t += domain.tox
@@ -522,28 +601,37 @@ def system_merit(domains):
         p += domain.cost
         r += domain.rvalue
 
-    print 't,a,c', t,a,c
-    print G
+    #print 't,a,c', t,a,c
+    #print G
     I = t*c/a/G
     R = r/G
     P = p/G
-    print 'I (CTUh*gCO2eq/cm^2)', I
-    print 'R (?)', R
-    print 'P ($/w)', P
-    print "eta (%)", round(l/g *100,1)
-    nt = l*P*I*R/g
-    print nt
+    #print 'I (CTUh*gCO2eq/cm^2)', I
+    #print 'R (?)', R
+    #print 'P ($/w)', P
+    #print "eta (%)", eta
+    eta = round(nl/g *100,1)
+    nt = nl*P*I*R/g
+    #print nt
+    print ', '.join([str(i) for i in [G, C, eta, P, I, R, t, a, c, r, g, eg, l, nl, nt]])
 
 if __name__ == '__main__':
     plt.ion()
-    unit_test()
-    from scipy import optimize
-    x0 = np.array([400.,70.])
-    r =  optimize.minimize(merit,x0)
-    print r
-    s,p = r['x']
-    report(model((s,p)))
+    #unit_test()
+    #from scipy import optimize
+    #x0 = np.array([400.,70.])
+    #r =  optimize.minimize(merit,x0)
+    #r = optimize.basinhopping(model,x0,niter=1)
+    #print r
+    #s,p = r['x']
+    #report(model((s,p)),'mppt_optimized_0.05_lolh','SHS mppt controller sized at $0.05/lolh')
     #optimize.basinhopping(model,x0,niter=10)
     #optimize.anneal(model,x0,maxiter=10,upper=1000,lower=0)
     plt.show()
+    'G, C, eta, P, I, R, t, a, c, r, g, l, nt'
+    print 'G,C,eta,P,I,R,t,a,c,r,g,eg,l,nl,nt'
+
+    for i in range(25,1000,30):
+        for j in range(5,200,5):
+            system_merit([model([i,j])])
 
