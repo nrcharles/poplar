@@ -18,3 +18,10 @@ def heatmap(list_like):
     data = np.rot90(data,3)
     data = np.fliplr(data)
     return data
+def module_temp(irradiance, weather_data):
+    #todo: Maybe Sandia Module Temperature instead?                                                                                                                           
+    #TamizhMani 2003
+    t_amb = float(weather_data["Dry-bulb (C)"])
+    wind_ms = float(weather_data['Wspd (m/s)'])
+    t_module = .945*t_amb + .028*irradiance - 1.528*wind_ms + 4.3
+    return t_module

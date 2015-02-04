@@ -1,8 +1,8 @@
 # goal: model 1 year
 from caelum import eere
 from loads import annual_2013
-from devices import Domain, PVSystem, MPPTChargeController, IdealStorage
-
+from devices import Domain, IdealStorage
+from devices import SimplePV, PVSystem, MPPTChargeController, SimpleChargeController
 from misc import heatmap
 
 import numpy as np
@@ -16,13 +16,13 @@ sys.stdout.flush()
 def model(z):
     size, pv = z
     pv = max(pv, 0)
-    isc = pv/12.5
     size = max(size, 0)
     PLACE = (24.811468, 89.334329)
     # SHS = Domain(load=DailyLoad([0,18,19,22,21,24],[0,0,1,1,0,0]),
     # SHS = Domain(load=spline_profile,
-    SHS = Domain(load=annual_2013,
-                 gen=PVSystem([MPPTChargeController(12.5, isc)],
+    SHS = Domain(load=annual_2013(),
+                 gen=PVSystem([MPPTChargeController(SimplePV(pv))],
+                 #gen=PVSystem([SimpleChargeController(SimplePV(pv))],
                               PLACE, 24.81, 180.),
                  storage=IdealStorage(size))
     for i in eere.EPWdata('418830'):
@@ -88,30 +88,6 @@ def report(domain, figname='SHS', title=None):
     # plt.draw()
     fig.savefig('%s.pdf' % figname)
 
-
-def merit(z):
-    size, pv = z
-    domain = model((size, pv))
-    load_shed = - domain.storage.shortfall
-    im = plt.imshow(heatmap(domain.storage.state_series), aspect='auto')
-    im.get_figure().canvas.flush_events()
-    plt.draw()
-
-    return domain.cost + domain.depletion + load_shed * 1  # 0.05
-
-
-def unit_test():
-    s = IdealStorage(100)
-    d = 10 + s
-    print d
-    d = - 110 + s
-    print d
-    90 + s
-    # s.details()
-    if s.soc() != .9:
-        print 'badness'
-
-
 def system_merit(domains):
     a = 0
     t = 0
@@ -157,17 +133,6 @@ def system_merit(domains):
 
 if __name__ == '__main__':
     plt.ion()
-    # unit_test()
-    # from scipy import optimize
-    # x0 = np.array([400.,70.])
-    # r =  optimize.minimize(merit,x0)
-    # r = optimize.basinhopping(model,x0,niter=1)
-    # print r
-    # s,p = r['x']
-    # report(model((s,p)),'mppt_optimized_0.05_lolh',
-    #        'SHS mppt controller sized at $0.05/lolh')
-    # optimize.basinhopping(model,x0,niter=10)
-    # optimize.anneal(model,x0,maxiter=10,upper=1000,lower=0)
     plt.show()
     'G, C, eta, P, I, R, t, a, c, r, g, l, nt'
     print 'G,C,eta,P,I,R,t,a,c,r,g,eg,l,nl,nt'

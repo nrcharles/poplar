@@ -1,6 +1,6 @@
 from solpy import irradiation
 import numpy as np
-from misc import significant
+from misc import significant, module_temp
 
 
 class LA(object):
@@ -148,28 +148,36 @@ class SystemSeed(object):
 
 
 class SimplePV():
-    def __init__(self, vnom, imp):
-        self.voc = vnom * 1.2
-        self.vmp = vnom
-        self.imp = imp
+    def __init__(self, W):
+        imax = 8.
+        v_bus = [24,20,12]
+        for v in v_bus:
+            vmp = v*1.45
+            imp = W/vmp
+            if imp < imax:
+                self.vmp = vmp
+                self.imp = imp
+        self.voc = self.vmp * 1.25
+        self.tc_vmp = self.vmp* -0.004
 
     def output(self, irr, t_cell=25):
-        return self.vmp, self.imp*irr/1000.
+        vmp = self.vmp - (25-t_cell) * self.tc_vmp
+        return vmp, self.imp*irr/1000.
+
+    def __call__(self, irr, t_cell=25):
+        return self.output(irr, t_cell)
 
 
 class MPPTChargeController():
-    def __init__(self, vnom, imp):
-        self.imp = imp
-        self.vnom = vnom
-        self.vmpp = vnom
+    def __init__(self, array):
         self.loss = 0
-        self.array = SimplePV(vnom, imp)
+        self.array = array
 
-    def __call__(self, irr):
-        return self.output(irr)
+    def __call__(self, irr, t_cell):
+        return self.output(irr,t_cell)
 
-    def output(self, irr, t_cell=None):
-        v, i = self.array.output(irr)
+    def output(self, irr, t_cell):
+        v, i = self.array(irr, t_cell)
         # i = irr/1000. * self.imp
         w = v*i
         self.loss += .05*w
@@ -179,7 +187,7 @@ class MPPTChargeController():
         return self.loss
 
     def nameplate(self):
-        return self.array.output(1000.)
+        return self.array(1000.)
 
     def area(self):
         return self.nameplate()/1000./.2
@@ -199,18 +207,16 @@ class MPPTChargeController():
 
 
 class SimpleChargeController():
-    def __init__(self, vnom, imp):
-        self.imp = imp
-        self.vnom = vnom
-        self.vmpp = vnom * 1.2
+    def __init__(self, array, vnom=12.5):
         self.loss = 0
-        self.array = SimplePV(vnom, imp)
+        self.array = array
+        self.vnom = vnom
 
-    def __call__(self, irr):
-        return self.output(irr)
+    def __call__(self, irr, t_cell):
+        return self.output(irr, t_cell)
 
-    def output(self, irr, t_cell=None):
-        v, i = self.array.output(irr)
+    def output(self, irr, t_cell):
+        v, i = self.array.output(irr, t_cell)
         # i = irr/1000. * self.imp
         self.loss += (v - self.vnom) * i
         return self.vnom * i
@@ -219,7 +225,7 @@ class SimpleChargeController():
         return self.loss
 
     def nameplate(self):
-        return self.imp * self.vmpp
+        return self.array(1000)
 
     def area(self):
         return self.nameplate()/1000./.2
@@ -283,7 +289,8 @@ class PVSystem(object):
             irr = irradiation.irradiation(t, self.place, t=self.tilt,
                                           array_azimuth=self.azimuth,
                                           model='p9')
-            return self.output(irr)
+            t_cell = module_temp(irr,t)
+            return self.output(irr, t_cell)
         except Exception as e:
             print e
             return 0
@@ -301,6 +308,42 @@ class Domain(object):
         self.net_l = []  # enabled load
         self.surplus = 0
         self.shortfall = 0
+
+    def autonomy(self):
+        """this is a hack assumes hour time intervals"""
+        # g_ave = sum(self.g)/len(self.g)
+        l_med = np.median(self.l)
+        return self.storage.capacity/l_med  # hours
+
+    def eta(self):
+        return sum(self.net_l)/(sum(self.g)+self.gen.losses())
+
+    def details(self):
+        results = {
+            'gen losses (wh)': significant(self.gen.losses()),
+            'desired load (wh)': significant(sum(self.l)),
+            'Autonomy (hours) (Median Load/C)': significant(self.autonomy()),
+            'Domain Parts (USD)': significant(self.cost),
+            'Domain depletion (USD)': significant(self.depletion),
+            'A (m2)': significant(self.area),
+            'Tox (CTUh)': significant(self.tox),
+            'CO2 (gCO2 eq)': significant(self.co2),
+            'eta T (%)': significant(self.eta()*100)
+        }
+        if self.gen:
+            results['STC (w)'] = significant(self.gen.p_dc(1000.))
+        if self.storage:
+            results['capacity (wh)'] = significant(self.storage.capacity)
+        return results
+
+    def STC(self):
+        if self.gen:
+            return self.gen.p_dc(1000.)
+        else:
+            return 0.
+
+    def to_dict(self):
+        return ['Domain',dict(self.gen)]
 
     def __call__(self, record):
         if self.load:
@@ -335,45 +378,13 @@ class Domain(object):
                 self.shortfall += l_t
             return d
 
-    def STC(self):
-        if self.gen:
-            return self.gen.p_dc(1000.)
-        else:
-            return 0.
-
-    def autonomy(self):
-        """this is a hack assumes hour time intervals"""
-        # g_ave = sum(self.g)/len(self.g)
-        l_med = np.median(self.l)
-        return self.storage.capacity/l_med  # hours
-
-    def eta(self):
-        return sum(self.net_l)/(sum(self.g)+self.gen.losses())
-
-    def details(self):
-        results = {
-            'gen losses (wh)': significant(self.gen.losses()),
-            'desired load (wh)': significant(sum(self.l)),
-            'Autonomy (hours) (Median Load/C)': significant(self.autonomy()),
-            'Domain Parts (USD)': significant(self.cost),
-            'Domain depletion (USD)': significant(self.depletion),
-            'A (m2)': significant(self.area),
-            'Tox (CTUh)': significant(self.tox),
-            'CO2 (gCO2 eq)': significant(self.co2),
-            'eta T (%)': significant(self.eta()*100)
-        }
-        if self.gen:
-            results['STC (w)'] = significant(self.gen.p_dc(1000.))
-        if self.storage:
-            results['capacity (wh)'] = significant(self.storage.capacity)
-        return results
-
     def __getattr__(self, name):
         v = 0
         for i in [self.gen, self.load, self.storage]:
             if hasattr(i, name):
                 v += getattr(i, name)()
         return v
+
 
 
 class ChargeController(object):
