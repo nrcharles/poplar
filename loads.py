@@ -42,6 +42,8 @@ class annual_2013(object):
     def __iter__(self):
         yield ['Annual Load',[]]
 
+    def __repr__(self):
+        return 'Load'
 
 class DailyLoad(object):
     def __init__(self, hours, loads):
