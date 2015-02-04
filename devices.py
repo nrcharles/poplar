@@ -1,7 +1,8 @@
 from solpy import irradiation
 import numpy as np
 from misc import significant, module_temp
-
+import networkx as nx
+import string
 
 class LA(object):
     def __init__(self):
@@ -130,7 +131,8 @@ class IdealStorage(object):
         return results
 
     def __repr__(self):
-        return 'Soc: %s %%' % round(self.soc()*100, 1)
+        return '%s Wh Battery Soc: %s %%' % (self.capacity,
+                                             round(self.soc()*100, 1))
 
 
 class SystemSeed(object):
@@ -167,33 +169,19 @@ class SimplePV():
     def __call__(self, irr, t_cell=25):
         return self.output(irr, t_cell)
 
+    def __repr__(self):
+        v, i = self(1000.)
+        W = v*i
+        return '%s W PV Module' % W
+
 
 class MPPTChargeController():
     def __init__(self, array):
         self.loss = 0
         self.array = array
 
-    def __call__(self, irr, t_cell):
-        return self.output(irr,t_cell)
-
-    def output(self, irr, t_cell):
-        v, i = self.array(irr, t_cell)
-        # i = irr/1000. * self.imp
-        w = v*i
-        self.loss += .05*w
-        return v*i*.95
-
-    def losses(self):
-        return self.loss
-
-    def nameplate(self):
-        return self.array(1000.)
-
     def area(self):
         return self.nameplate()/1000./.2
-
-    def tox(self):
-        return self.nameplate()*.3
 
     def co2(self):
         # 41g/kWh
@@ -204,6 +192,35 @@ class MPPTChargeController():
     def cost(self):
         # assume a fixed cost for charge controller
         return self.nameplate()*.8 + 10
+
+    def graph(self):
+        G = nx.Graph()
+        G.add_node(self.array)
+        G.add_node(self)
+        G.add_edge(self,self.array)
+        return G
+
+    def losses(self):
+        return self.loss
+
+    def nameplate(self):
+        return self.array(1000.)
+
+    def output(self, irr, t_cell):
+        v, i = self.array(irr, t_cell)
+        # i = irr/1000. * self.imp
+        w = v*i
+        self.loss += .05*w
+        return v*i*.95
+
+    def tox(self):
+        return self.nameplate()*.3
+
+    def __call__(self, irr, t_cell):
+        return self.output(irr,t_cell)
+
+    def __repr__(self):
+        return 'MPPT Charge Controller'
 
 
 class SimpleChargeController():
@@ -243,6 +260,9 @@ class SimpleChargeController():
         # assume a fixed cost for charge controller
         return self.nameplate()*.8 + 7
 
+    def __repr__(self):
+        return 'Simple Charge Controller'
+
 
 class PVSystem(object):
     def __init__(self, shape, place, tilt, azimuth):
@@ -265,17 +285,11 @@ class PVSystem(object):
     def area(self):
         return self.p_dc(1000.)/1000./.15
 
-    def tox(self):
-        return self.p_dc(1000.)*.3
-
     def co2(self):
         # 41g/kWh
         # life ~36500 hours of operation
         # 1496500 g/kw
         return 1496500 * self.p_dc(1000.)/1000.
-
-    def losses(self):
-        return sum([i.losses() for i in self.shape])
 
     def cost(self):
         # assume a fixed cost for charge controller
@@ -283,6 +297,21 @@ class PVSystem(object):
 
     def depletion(self):
         return self.cost()/20.
+
+    def graph(self):
+        G = nx.Graph()
+        G.add_node(self)
+        for i in self.shape:
+            G.add_node(i)
+            G.add_edge(self,i)
+            G = nx.compose(G,i.graph())
+        return G
+
+    def losses(self):
+        return sum([i.losses() for i in self.shape])
+
+    def tox(self):
+        return self.p_dc(1000.)*.3
 
     def __call__(self, t):
         try:
@@ -295,9 +324,11 @@ class PVSystem(object):
             print e
             return 0
 
+    def __repr__(self):
+        return 'Plant'
 
 class Domain(object):
-    def __init__(self, load=None, storage=None, gen=None):
+    def __init__(self, load=None, storage=None, gen=None, name='A'):
         self.load = load
         self.gen = gen
         self.storage = storage
@@ -308,6 +339,7 @@ class Domain(object):
         self.net_l = []  # enabled load
         self.surplus = 0
         self.shortfall = 0
+        self.name = name
 
     def autonomy(self):
         """this is a hack assumes hour time intervals"""
@@ -336,14 +368,26 @@ class Domain(object):
             results['capacity (wh)'] = significant(self.storage.capacity)
         return results
 
+    def graph(self):
+        G=nx.Graph()
+        G.add_node(self)
+        if self.gen:
+            G.add_node(self.gen)
+            G.add_edge(self, self.gen)
+            G = nx.compose(G,self.gen.graph())
+        if self.load:
+            G.add_node(self.load)
+            G.add_edge(self, self.load)
+        if self.storage:
+            G.add_node(self.storage)
+            G.add_edge(self, self.storage)
+        return G
+
     def STC(self):
         if self.gen:
             return self.gen.p_dc(1000.)
         else:
             return 0.
-
-    def to_dict(self):
-        return ['Domain',dict(self.gen)]
 
     def __call__(self, record):
         if self.load:
@@ -378,13 +422,15 @@ class Domain(object):
                 self.shortfall += l_t
             return d
 
+    def __repr__(self):
+        return 'Domain %s' % self.name
+
     def __getattr__(self, name):
         v = 0
         for i in [self.gen, self.load, self.storage]:
             if hasattr(i, name):
                 v += getattr(i, name)()
         return v
-
 
 
 class ChargeController(object):
