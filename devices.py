@@ -18,16 +18,43 @@ class Device(object):
         self.device_cost = 0.
         self.device_tox = 0.
         self.device_co2 = 0.
+        self.device_area = 0.
 
     def co2(self):
-        return sum([i.co2() for i in self.children]) + self.device_co2
-
-    def cost(self):
-        # assume a fixed cost for charge controller
-        return sum([i.cost() for i in self.children]) + self.device_cost
+        name = 'co2'
+        v = 0
+        if hasattr(self, 'children'):
+            v += sum([getattr(i,name)() for i in self.children])
+        if hasattr(self,'device_%s' % name):
+            v += getattr(self,'device_%s' % name)
+        return v
 
     def tox(self):
-        return sum([i.tox() for i in self.children]) + self.device_tox
+        name = 'tox'
+        v = 0
+        if hasattr(self, 'children'):
+            v += sum([getattr(i,name)() for i in self.children])
+        if hasattr(self,'device_%s' % name):
+            v += getattr(self,'device_%s' % name)
+        return v
+
+    def cost(self):
+        name = 'cost'
+        v = 0
+        if hasattr(self, 'children'):
+            v += sum([getattr(i,name)() for i in self.children])
+        if hasattr(self,'device_%s' % name):
+            v += getattr(self,'device_%s' % name)
+        return v
+
+    def area(self):
+        name = 'area'
+        v = 0
+        if hasattr(self, 'children'):
+            v += sum([getattr(i,name)() for i in self.children])
+        if hasattr(self,'device_%s' % name):
+            v += getattr(self,'device_%s' % name)
+        return v
 
     def graph(self):
         G = nx.Graph()
@@ -41,14 +68,6 @@ class Device(object):
 
     def __repr__(self):
         return 'Device'
-
-    #def __getattr__(self, name):
-    #    v = 0
-    #    for i in self.children:
-    #        if hasattr(i, name):
-    #            v += getattr(i, name)()
-    #    return v
-
 
 class LA(object):
     def __init__(self):
@@ -71,7 +90,7 @@ class LA(object):
         self.cost_kw = .13
 
 
-class IdealStorage(object):
+class IdealStorage(Device):
     """Ideal Storage class
     no self discharge
     no efficiency losses
@@ -396,17 +415,8 @@ class PVSystem(Device):
         return sum([i.output(irr, t_cell) for i in self.children])
 
     def depletion(self):
-        """1 year depleation assuming lifetime"""
+        """1 year depletion assuming lifetime"""
         return self.cost()/self.life
-
-    def graph(self):
-        G = nx.Graph()
-        G.add_node(self)
-        for i in self.children:
-            G.add_node(i)
-            G.add_edge(self, i)
-            G = nx.compose(G, i.graph())
-        return G
 
     def losses(self):
         """total losses"""
@@ -428,15 +438,16 @@ class PVSystem(Device):
             return 0
 
     def __repr__(self):
-        return 'Plant %s, %s' % (significant(self.place[0]),
-                                 significant(self.place[1]))
+        return 'Plant %s, %s' % (significant(self.tilt),
+                                 significant(self.azimuth))
 
 
-class Domain(object):
-    def __init__(self, load=None, storage=None, gen=None, name='A'):
+class Domain(Device):
+    def __init__(self, load=None, storage=None, gen=None):
         self.load = load
         self.gen = gen
         self.storage = storage
+        self.children = [self.load, self.gen, self.storage]
         self.g = []
         self.l = []
         self.d = []
@@ -444,7 +455,6 @@ class Domain(object):
         self.net_l = []  # enabled load
         self.surplus = 0
         self.shortfall = 0
-        self.name = name
 
     def autonomy(self):
         """this is a hack assumes hour time intervals"""
@@ -467,11 +477,11 @@ class Domain(object):
             'desired load (wh)': significant(sum(self.l)),
             'Autonomy (hours) (Median Load/C)': significant(self.autonomy()),
             'Capacity Factor (%)': significant(self.capacity_factor()*100.),
-            'Domain Parts (USD)': significant(self.cost),
-            'Domain depletion (USD)': significant(self.depletion),
-            'A (m2)': significant(self.area),
-            'Tox (CTUh)': significant(self.tox),
-            'CO2 (gCO2 eq)': significant(self.co2),
+            'Domain Parts (USD)': significant(self.cost()),
+            'Domain depletion (USD)': significant(self.depletion()),
+            'A (m2)': significant(self.gen.area()),
+            'Tox (CTUh)': significant(self.tox()),
+            'CO2 (gCO2 eq)': significant(self.co2()),
             'eta T (%)': significant(self.eta()*100)
         }
         if self.gen:
@@ -479,21 +489,6 @@ class Domain(object):
         if self.storage:
             results['capacity (wh)'] = significant(self.storage.capacity)
         return results
-
-    def graph(self):
-        G = nx.Graph()
-        G.add_node(self)
-        if self.gen:
-            G.add_node(self.gen)
-            G.add_edge(self, self.gen)
-            G = nx.compose(G, self.gen.graph())
-        if self.load:
-            G.add_node(self.load)
-            G.add_edge(self, self.load)
-        if self.storage:
-            G.add_node(self.storage)
-            G.add_edge(self, self.storage)
-        return G
 
     def STC(self):
         if self.gen:
@@ -537,11 +532,26 @@ class Domain(object):
             return d
 
     def __repr__(self):
-        return 'Domain $%s' % significant(self.cost)
+        return 'Domain $%s' % significant(self.cost())
 
-    def __getattr__(self, name):
+    #def __getattr__(self, name):
+    #    v = 0
+    #    for i in [self.gen, self.load, self.storage]:
+    #        if hasattr(i, name):
+    #            v += getattr(i, name)()
+    #    return v
+    def depletion(self):
+        name = 'depletion'
         v = 0
-        for i in [self.gen, self.load, self.storage]:
+        for i in self.children:
+            if hasattr(i, name):
+                v += getattr(i, name)()
+        return v
+
+    def rvalue(self):
+        name = 'rvalue'
+        v = 0
+        for i in self.children:
             if hasattr(i, name):
                 v += getattr(i, name)()
         return v

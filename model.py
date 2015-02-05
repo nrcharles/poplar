@@ -132,6 +132,7 @@ def system_merit(domains):
         g += sum(domain.g)
         if domain.gen:
             g += domain.gen.losses()
+            a += domain.gen.area()*10000  # cm^2
         if domain.storage:
             C += domain.storage.capacity
             eg += domain.storage.surplus
@@ -140,12 +141,12 @@ def system_merit(domains):
             nl += sum(domain.net_l)
             eg += domain.surplus
         l += sum(domain.l)
-        a += domain.area*10000  # cm^2
-        t += domain.tox
-        c += domain.co2
-        p += domain.cost
-        r += domain.rvalue
+        t += domain.tox()
+        c += domain.co2()
+        p += domain.cost()
+        r += domain.rvalue()
 
+    print a, G
     I = t*c/a/G
     R = r/G
     P = p/G

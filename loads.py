@@ -3,8 +3,10 @@ import datetime
 import numpy as np
 import random
 from scipy.interpolate import interp1d
-fmt = '%Y-%m-%d %H:%M:%S'
+from devices import Device
 
+#Load BD Historical Data
+fmt = '%Y-%m-%d %H:%M:%S'
 foo = csv.reader(open('./profiles.csv'))
 BD = {}
 
@@ -33,15 +35,23 @@ def annual_2014(dt, mult=7.):
     return BD[mdt][offset]*mult/4000.
 
 
-class annual(object):
-    def __init__(self, mult=7., year=2013):
+class annual(Device):
+    """Annual Weather Data Nominilized to 1 kWH annual
+
+    Parameters:
+        mult (float): scaling parameter (default 71.4)
+        year (int): year to choose (default 2013)
+
+
+    """
+    def __init__(self, mult=71.4, year=2013):
         self.mult = mult
         self.year = year
 
     def __call__(self, dt):
         mdt = datetime.date(self.year, dt.month, dt.day)
         offset = int(round(dt.hour*2.0))
-        return BD[mdt][offset]*self.mult/4000.
+        return BD[mdt][offset]*self.mult/40800.
 
     def total(self):
         new_year = datetime.datetime(2013, 1, 1)
