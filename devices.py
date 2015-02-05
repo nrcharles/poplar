@@ -3,6 +3,51 @@ import numpy as np
 from misc import significant, module_temp
 import networkx as nx
 
+class Device(object):
+    """Device
+
+    Parameters:
+        children (list): list of children
+        device_co2 (float): cumulative energy losses (Wh)
+        device_tox (float): device_tox
+        device_cost (float): device cost
+        """
+    def __init__(self, array_like):
+        self.children = array_like
+        self.device_cost = 1.
+        self.device_tox = 1.
+        self.device_co2 = 1.
+
+    def co2(self):
+        return [i.co2() for i in self.children] + self.device_co2
+
+    def cost(self):
+        # assume a fixed cost for charge controller
+        return [i.co2() for i in self.children] + self.device_cost
+
+    def tox(self):
+        return self.array.tox() + self.device_tox
+
+    def graph(self):
+        G = nx.Graph()
+        G.add_node(self)
+        for i in self.shape:
+            G.add_node(i)
+            G.add_edge(self, i)
+            G = nx.compose(G, i.graph())
+        return G
+
+    def __repr__(self):
+        return 'Device'
+
+    #def __getattr__(self, name):
+    #    v = 0
+    #    for i in self.children:
+    #        if hasattr(i, name):
+    #            v += getattr(i, name)()
+    #    return v
+
+
 class LA(object):
     def __init__(self):
         """ Flooded Lead Acid Battery Parameters
@@ -227,19 +272,17 @@ class SimplePV():
 
 
 class ChargeController():
-    """Charge Controller
+    """Ideal Charge Controller
 
     Parameters:
         loss (float): cumulative energy losses (Wh)
         array (object): PV Array
-        efficiency (float): energy conversion efficiency
         cost (float): device cost
 
     """
-    def __init__(self, array, efficiency=.95):
+    def __init__(self, array):
         self.loss = 0.
         self.array = array
-        self.efficiency = efficiency
         self.device_cost = 10.
         self.device_tox = 3.
         self.device_co2 = 5.
@@ -274,10 +317,7 @@ class ChargeController():
 
     def output(self, irr, t_cell):
         v, i = self.array(irr, t_cell)
-        # i = irr/1000. * self.imp
-        w = v*i
-        self.loss += (1.-self.efficiency)*w
-        return v*i*self.efficiency
+        return v*i
 
     def tox(self):
         return self.array.tox() + self.device_tox
@@ -287,7 +327,7 @@ class ChargeController():
     def __repr__(self):
         return 'CC'
 
-class MPPTChargeController():
+class MPPTChargeController(ChargeController):
     """MPPT Charge Controller
 
     Note: Assumes Linear efficiency curve
@@ -307,37 +347,6 @@ class MPPTChargeController():
         self.device_tox = 3.
         self.device_co2 = 5.
 
-    def area(self):
-        return self.nameplate()/1000./.2
-
-    def co2(self):
-        """CO2 for SystemSeed
-        Note:
-        Assuming 1500 kg/kw
-        ~41g/kWh
-        ~36500 hours of operation
-        """
-        return 1.5 * self.nameplate()/1000.
-
-    def cost(self):
-        # assume a fixed cost for charge controller
-        return self.array.cost() + self.device_cost
-
-    def graph(self):
-        G = nx.Graph()
-        G.add_node(self.array)
-        G.add_node(self)
-        G.add_edge(self,self.array)
-        return G
-
-    def losses(self):
-        return self.loss
-
-    def nameplate(self):
-        v,i = self.array(1000., 25.)
-        W = v*i
-        return W
-
     def output(self, irr, t_cell):
         v, i = self.array(irr, t_cell)
         # i = irr/1000. * self.imp
@@ -345,56 +354,26 @@ class MPPTChargeController():
         self.loss += (1.-self.efficiency)*w
         return v*i*self.efficiency
 
-    def tox(self):
-        return self.array.tox() + self.device_tox
-
     __call__ = output
 
     def __repr__(self):
         return 'MPPT CC %s %%' % significant(self.efficiency*100.)
 
 
-class SimpleChargeController():
+class SimpleChargeController(ChargeController):
     def __init__(self, array, vnom=12.5):
         self.loss = 0
         self.array = array
         self.vnom = vnom
+        self.device_tox = 3.
+        self.device_co2 = 5.
         self.device_cost = 7.
-
-    def graph(self):
-        G = nx.Graph()
-        G.add_node(self.array)
-        G.add_node(self)
-        G.add_edge(self, self.array)
-        return G
 
     def output(self, irr, t_cell):
         v, i = self.array.output(irr, t_cell)
         # i = irr/1000. * self.imp
         self.loss += (v - self.vnom) * i
         return self.vnom * i
-
-    def losses(self):
-        return self.loss
-
-    def nameplate(self):
-        return self.array.nameplate()
-
-    def area(self):
-        return self.nameplate()/1000./.2
-
-    def tox(self):
-        return self.nameplate()*.3
-
-    def co2(self):
-        # 41g/kWh
-        # life ~36500 hours of operation
-        # 1496.500 kg/kw
-        return 1.496500 * self.nameplate()/1000.
-
-    def cost(self):
-        # assume a fixed cost for charge controller
-        return self.array.cost() + self.device_cost
 
     __call__ = output
 
