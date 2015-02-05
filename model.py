@@ -1,9 +1,10 @@
 # goal: model 1 year
 from caelum import eere
-from loads import annual_2013
+from loads import annual
 from devices import Domain, IdealStorage
 from devices import SimplePV, PVSystem, MPPTChargeController, SimpleChargeController
 from misc import heatmap
+import networkx as nx
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -20,7 +21,7 @@ def model(z):
     PLACE = (24.811468, 89.334329)
     # SHS = Domain(load=DailyLoad([0,18,19,22,21,24],[0,0,1,1,0,0]),
     # SHS = Domain(load=spline_profile,
-    SHS = Domain(load=annual_2013(),
+    SHS = Domain(load=annual(),
                  gen=PVSystem([MPPTChargeController(SimplePV(pv))],
                  #gen=PVSystem([SimpleChargeController(SimplePV(pv))],
                               PLACE, 24.81, 180.),
@@ -30,6 +31,10 @@ def model(z):
     SHS.storage.details()
     return SHS
 
+def latexify(s):
+    s = s.replace('%','\\%')
+    s = s.replace('$','\\$')
+    return s
 
 def report(domain, figname='SHS', title=None):
     if title is None:
@@ -74,14 +79,36 @@ def report(domain, figname='SHS', title=None):
     if domain.storage:
         td.update(domain.storage.details())
     s = '\n'.join(['%s:%s' % (k, td[k]) for k in td.iterkeys()])
-    print s
+    print """
+\\begin{figure}
+\\centering
+\\includegraphics[width=\\linewidth]{../thesis/code/%s.pdf}
+\\caption{%s} \\label{fig:%s}
+\\end{figure}
+    """ % (figname, latexify(title), figname)
+    print "\\begin{table}"
+    print '\\centering'
+    print '\\captionof{table}{%s} \\label{tab:%s}' % (latexify(title), figname)
+    print "\\begin{tabular}{@{}ll@{}}"
+    print "\\toprule"
+    print "Key & Value\\\\"
+    print "\\midrule"
+    for k in td.iterkeys():
+        print latexify(k), '&', td[k], '\\\\'
+    print "\\bottomrule"
+    print "\\end{tabular}"
+    print "\\end{table}"
+    print
     ax6 = fig.add_subplot(326)
-    ax6.text(0., 0., s, fontsize=8)
+    G = domain.graph()
+    nx.draw(G, pos=nx.spring_layout(G),ax=ax6)
+    #ax6.text(0., 0., s, fontsize=8)
     ax6.axis('off')
-    print 'PV Array (kW) %s' % (pv/1000.)
-    print 'Storage (wH) %s' % size
-    print 'Loads/Depletion:?'
-    system_merit([domain])
+    ax6.autoscale_view()
+    # print 'PV Array (kW) %s' % (pv/1000.)
+    # print 'Storage (wH) %s' % size
+    # print 'Loads/Depletion:?'
+    #system_merit([domain])
     # fig.suptitle(title)
     fig.tight_layout()
     # plt.show()
@@ -134,7 +161,7 @@ def system_merit(domains):
 if __name__ == '__main__':
     plt.ion()
     plt.show()
-    'G, C, eta, P, I, R, t, a, c, r, g, l, nt'
+    'G, C, eta, P, I, Rg, t, a, c, r, g, l, nt'
     print 'G,C,eta,P,I,R,t,a,c,r,g,eg,l,nl,nt'
 
     for i in range(25, 1000, 30):

@@ -49,7 +49,7 @@ class annual(object):
         return sum(self(hour_to_dt(i)) for i in range(365*24))
 
     def __repr__(self):
-        return '%s kWh Annual Load' % round(self.total()/1000., 1)
+        return 'L %s kWh/year' % round(self.total()/1000., 1)
 
 
 class DailyLoad(object):
