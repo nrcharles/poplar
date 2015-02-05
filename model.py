@@ -22,7 +22,7 @@ def model(z):
     # SHS = Domain(load=DailyLoad([0,18,19,22,21,24],[0,0,1,1,0,0]),
     # SHS = Domain(load=spline_profile,
     SHS = Domain(load=annual(),
-                 gen=PVSystem([MPPTChargeController(SimplePV(pv))],
+                 gen=PVSystem([MPPTChargeController([SimplePV(pv)])],
                  #gen=PVSystem([SimpleChargeController(SimplePV(pv))],
                               PLACE, 24.81, 180.),
                  storage=IdealStorage(size))
