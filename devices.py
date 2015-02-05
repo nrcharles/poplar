@@ -20,32 +20,24 @@ class Device(object):
         self.device_co2 = 0.
         self.device_area = 0.
 
-    def co2(self):
-        name = 'co2'
+    def parameter(self, name):
         v = 0
         if hasattr(self, 'children'):
-            v += sum([getattr(i,name)() for i in self.children])
+            for i in self.children:
+                if hasattr(i,name):
+                    v+= getattr(i,name)()
         if hasattr(self,'device_%s' % name):
             v += getattr(self,'device_%s' % name)
         return v
+
+    def co2(self):
+        return self.parameter('co2')
 
     def tox(self):
-        name = 'tox'
-        v = 0
-        if hasattr(self, 'children'):
-            v += sum([getattr(i,name)() for i in self.children])
-        if hasattr(self,'device_%s' % name):
-            v += getattr(self,'device_%s' % name)
-        return v
+        return self.parameter('tox')
 
     def cost(self):
-        name = 'cost'
-        v = 0
-        if hasattr(self, 'children'):
-            v += sum([getattr(i,name)() for i in self.children])
-        if hasattr(self,'device_%s' % name):
-            v += getattr(self,'device_%s' % name)
-        return v
+        return self.parameter('cost')
 
     def area(self):
         name = 'area'
@@ -531,30 +523,16 @@ class Domain(Device):
                 self.shortfall += l_t
             return d
 
-    def __repr__(self):
-        return 'Domain $%s' % significant(self.cost())
-
-    #def __getattr__(self, name):
-    #    v = 0
-    #    for i in [self.gen, self.load, self.storage]:
-    #        if hasattr(i, name):
-    #            v += getattr(i, name)()
-    #    return v
     def depletion(self):
-        name = 'depletion'
-        v = 0
-        for i in self.children:
-            if hasattr(i, name):
-                v += getattr(i, name)()
-        return v
+        self.parameter('depletion')
 
     def rvalue(self):
-        name = 'rvalue'
-        v = 0
-        for i in self.children:
-            if hasattr(i, name):
-                v += getattr(i, name)()
-        return v
+        # todo: fix this, loads have rvalues not storage
+        if self.storage:
+            return self.storage.rvalue()
+
+    def __repr__(self):
+        return 'Domain $%s' % significant(self.cost())
 
 
 class AdaptiveConsumer(object):

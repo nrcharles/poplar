@@ -146,7 +146,6 @@ def system_merit(domains):
         p += domain.cost()
         r += domain.rvalue()
 
-    print a, G
     I = t*c/a/G
     R = r/G
     P = p/G
