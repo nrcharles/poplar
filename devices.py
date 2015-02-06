@@ -95,7 +95,7 @@ class Device(object):
 
 class FLA(object):
     def __init__(self):
-        """ Flooded Lead Acid Battery Parameters
+        """Flooded Lead Acid Battery Parameters
 
         Attributes:
             usable (float): Usable/Effective capacity (ratio)
@@ -167,6 +167,15 @@ class IdealStorage(Device):
         return fixed
 
     def depletion(self):
+        """battery depletion expense
+
+        This is a simple calculation that levelizes battery replacement costs
+
+        .. math:: (kWh throughput) \cdot (kWh cost)
+
+        Returns:
+            (float) USD
+        """
         prospective = self.throughput/1000.*self.chem.cost_kw
         return prospective
 
@@ -185,23 +194,27 @@ class IdealStorage(Device):
         self.in_use += hours
 
         if energy > 0:
+            # Track C rate
             self.c_in.append(energy/self.capacity)
             max_in = self.capacity - self.state
             e_delta = min(energy, max_in)
             self.state += e_delta
             if e_delta != energy:
+                # energy has not all been stored
                 surplus = energy - e_delta
                 self.surplus += surplus
                 active_time = surplus/energy * hours
-                self.full_hours += active_time
+                self.full_hours += hours - active_time
             self.throughput += e_delta
 
         if energy < 0:
+            # Track C rate
             self.c_out.append(energy/self.capacity)
             max_out = self.state
             e_delta = - min(-energy, max_out)
             self.state += e_delta
             if e_delta != energy:
+                # energy has not all been stored
                 shortfall = max_out + energy
                 self.shortfall += shortfall
                 shortfall_time = shortfall/energy * hours
@@ -222,7 +235,7 @@ class IdealStorage(Device):
     def autonomy(self):
         """ Autonomy C/median discharge rate
 
-        this might be stupid, but median discharge rate is in watts,
+        This might be stupid, but median discharge rate is in watts,
         1 C discharge rate is in watt hours. So 1C over median discharge
         rate looks like the reciprocal.
 
@@ -325,7 +338,6 @@ class ChargeController(Device):
 
     """
     def __init__(self, array_like):
-        self.loss = 0.
         self.children = array_like
         self.device_cost = 10.
         self.device_tox = 3.
@@ -338,13 +350,22 @@ class ChargeController(Device):
         return sum([i.nameplate() for i in self.children])
 
     def output(self, irr, t_cell):
-        """output in watts. assumes that all modules are similar voltages"""
+        """Output of Ideal charge controller.
+
+        Note: Assumes that all modules are similar voltages
+
+        Args:
+            irr (float): irradiance W/m^2 or irradiation in Wh/m^2
+            t_cell (float): temperature of cell in C
+
+        Returns:
+            (float): W or Wh depending on input units
+        """
         w = 0.
         for child in self.children:
             v, i = child(irr, t_cell)
             w += v * i
-            self.loss += (1.-self.efficiency)*v*i
-        return w * self.efficiency
+        return w
 
     __call__ = output
 
@@ -365,6 +386,11 @@ class MPPTChargeController(ChargeController):
 
     """
     def __init__(self, array_like, efficiency=.95):
+        """
+        Args:
+            children (array_like): PV array
+            efficiency (float): energy conversion efficiency
+        """
         self.loss = 0.
         self.children = array_like
         self.efficiency = efficiency
@@ -373,12 +399,27 @@ class MPPTChargeController(ChargeController):
         self.device_co2 = 5.
 
     def output(self, irr, t_cell):
-        """output in watts. assumes that all modules are similar voltages"""
+        """Output of MPPT charge controller
+
+        Assumes that all modules are similar voltages and that the efficiency
+        curve is linear.
+
+        .. math:: output = input \cdot \eta
+
+        .. math:: losses = input \cdot (1 -\eta)
+
+        Args:
+            irr (float): irradiance W/m^2 or irradiation in Wh/m^2
+            t_cell (float): temperature of cell in C
+
+        Returns:
+            (float): W or Wh depending on input units
+        """
         w = 0.
         for child in self.children:
             v, i = child(irr, t_cell)
             w += v * i
-            self.loss += (1.-self.efficiency)*v*i
+            self.loss += (1. - self.efficiency) * v * i
         return w * self.efficiency
 
     __call__ = output
@@ -388,7 +429,22 @@ class MPPTChargeController(ChargeController):
 
 
 class SimpleChargeController(ChargeController):
-    def __init__(self, array_like, vnom=12.5):
+    """Simple Charge Controller
+
+    Note: Assumes output clipped to bus voltage vnom
+
+    Parameters:
+        loss (float): cumulative energy losses (Wh)
+        children (object): PV Array
+        cost (float): device cost
+
+    """
+    def __init__(self, children, vnom=12.5):
+        """
+        Args:
+            children (array_like): PV array
+            vnom (float): nominal bus voltage in Volts (default 12.5)
+        """
         self.loss = 0
         self.children = array_like
         self.vnom = vnom
@@ -397,6 +453,20 @@ class SimpleChargeController(ChargeController):
         self.device_co2 = 5.
 
     def output(self, irr, t_cell):
+        """Output of Simple charge controller.
+
+
+        .. math:: output = V_{nom} \cdot i
+
+        .. math:: losses = (V_{module} - V_{nom}) \cdot i
+
+        Args:
+            irr (float): irradiance W/m^2 or irradiation in Wh/m^2
+            t_cell (float): temperature of cell in C
+
+        Returns:
+            (float): W or Wh depending on input units
+        """
         w = 0.
         for child in self.children:
             v, i = child(irr, t_cell)
@@ -469,6 +539,16 @@ class PVSystem(Device):
 
 
 class Domain(Device):
+    """Domain Class
+
+    Attributes:
+        g (list): total gen delivered to domain
+        l (list): desired load
+        d (list): delta energy; surplus or shortfall
+        net_l (list): enabled load
+        surplus (float): total excess energy (wH)
+        shortfall (float): total energy shortfall (wH)
+    """
     def __init__(self, load=None, storage=None, gen=None):
         self.load = load
         self.gen = gen
@@ -483,25 +563,32 @@ class Domain(Device):
         self.shortfall = 0
 
     def autonomy(self):
-        """this is a hack assumes hour time intervals"""
+        """Domain autonomy
+
+        Note: assumes hour time intervals
+
+        Returns:
+            (float) hours
+        """
         # g_ave = sum(self.g)/len(self.g)
-        l_med = np.median(self.l)
-        return self.storage.capacity/l_med  # hours
+        l_median = np.median(self.l)
+        return self.storage.capacity/l_median  # hours
 
     def eta(self):
-        """System efficiency
+        """Domain efficiency
 
         .. math:: \eta_{T} = \frac{\sum{Loads}}{\sum{Generation}}
 
         """
+
         return sum(self.net_l)/(sum(self.g)+self.gen.losses())
 
     def capacity_factor(self):
-        """Capacity Factor
+        """Capacity Factor Cf
 
         .. math:: C_{f} = \frac{\sum{Loads}}{G_{P}\cdot 365 \cdot 24}
-        Where Gp is peak generation
 
+        Where Gp is peak generation
         """
         if self.gen:
             return sum(self.net_l)/(self.gen.nameplate()*24*365)
@@ -528,6 +615,7 @@ class Domain(Device):
         return results
 
     def STC(self):
+        """STC namplate rating of all generation in domain"""
         if self.gen:
             return self.gen.nameplate()
         else:
