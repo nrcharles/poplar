@@ -246,8 +246,8 @@ class IdealStorage(Device):
         return results
 
     def __repr__(self):
-        return '%s Wh %s Battery' % (self.chem.name,
-                                     significant(self.capacity))
+        return '%s Wh %s' % (significant(self.capacity),
+                             self.chem.name)
 
 
 class SimplePV(Device):
@@ -379,7 +379,7 @@ class MPPTChargeController(ChargeController):
     __call__ = output
 
     def __repr__(self):
-        return 'MPPT CC %s %%' % significant(self.efficiency*100.)
+        return '%s%% MPPT CC' % significant(self.efficiency*100.)
 
 
 class SimpleChargeController(ChargeController):
@@ -517,6 +517,10 @@ class Domain(Device):
         else:
             return 0.
 
+    def weather_series(self, array_like):
+        for i in array_like:
+            self(i)
+
     def __call__(self, record):
         if self.load:
             l_t = self.load(record['datetime'])
@@ -553,7 +557,7 @@ class Domain(Device):
             return d
 
     def depletion(self):
-        #print sum([i.depletion() for i in self.children if hasattr(i,'depletion')])
+        # print sum([i.depletion() for i in self.children if hasattr(i,'depletion')])
         return self.parameter('depletion')
 
     def rvalue(self):
