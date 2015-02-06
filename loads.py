@@ -6,15 +6,7 @@ from scipy.interpolate import interp1d
 from devices import Device
 
 #Load BD Historical Data
-fmt = '%Y-%m-%d %H:%M:%S'
-foo = csv.reader(open('./profiles.csv'))
-BD = {}
-
-for i in foo:
-    lp = [float(j.strip()) for j in i[2:50]]
-    tdt = datetime.datetime.strptime(i[0][0:19], fmt).date()
-    # , len(lp),lp
-    BD[tdt] = lp
+FMT = '%Y-%m-%d %H:%M:%S'
 
 LOAD_PROFILE = [0.645, 0.615, 0.585, 0.569, 0.552, 0.541, 0.53, 0.525, 0.521,
                 0.527, 0.534, 0.557, 0.581, 0.599, 0.617, 0.666, 0.715, 0.744,
@@ -35,6 +27,19 @@ def annual_2014(dt, mult=7.):
     return BD[mdt][offset]*mult/4000.
 
 
+def load(filename=None):
+    BD = {}
+    if filename == None:
+        filename = './profiles.csv'
+    foo = csv.reader(open(filename))
+    for i in foo:
+        lp = [float(j.strip()) for j in i[2:50]]
+        tdt = datetime.datetime.strptime(i[0][0:19], FMT).date()
+        # , len(lp),lp
+        BD[tdt] = lp
+    return BD
+
+
 class annual(Device):
     """Annual Weather Data Nominilized to 1 kWH annual
 
@@ -47,11 +52,12 @@ class annual(Device):
     def __init__(self, mult=71.4, year=2013):
         self.mult = mult
         self.year = year
+        self.data = load()
 
     def __call__(self, dt):
         mdt = datetime.date(self.year, dt.month, dt.day)
         offset = int(round(dt.hour*2.0))
-        return BD[mdt][offset]*self.mult/40800.
+        return self.data[mdt][offset]*self.mult/40800.
 
     def total(self):
         new_year = datetime.datetime(2013, 1, 1)
@@ -59,7 +65,7 @@ class annual(Device):
         return sum(self(hour_to_dt(i)) for i in range(365*24))
 
     def __repr__(self):
-        return 'L %s kWh/year' % round(self.total()/1000., 1)
+        return '%s kWh Load' % round(self.total()/1000., 1)
 
 
 class DailyLoad(object):
@@ -83,6 +89,7 @@ def noisy_profile(t):
 if __name__ == '__main__':
     # import datetime
     print simple_profile(datetime.datetime.now())
-    print annual_2014(datetime.datetime.now())
-    print annual_2014(datetime.datetime(2014, 12, 16, 20))*4000/17.
-    print annual_2014(datetime.datetime(2014, 1, 16, 3))*4000 / 17.
+    BD = annual()
+    print BD(datetime.datetime.now())
+    print BD(datetime.datetime(2014, 12, 16, 20))*4000/17.
+    print BD(datetime.datetime(2014, 1, 16, 3))*4000 / 17.
