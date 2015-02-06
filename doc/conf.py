@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# rhyzome documentation build configuration file, created by
+# poplar documentation build configuration file, created by
 # sphinx-quickstart on Thu Feb  5 15:59:10 2015.
 #
 # This file is execfile()d with the current directory set to its
@@ -28,7 +28,7 @@ sys.path.insert(0, os.path.abspath('..'))
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
-extensions = ['sphinx.ext.autodoc']
+extensions = ['sphinx.ext.autodoc','sphinxcontrib.bibtex']
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -43,7 +43,7 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = u'rhyzo.me'
+project = u'poplar'
 copyright = u'2015, Nathan Charles'
 
 # The version info for the project you're documenting, acts as replacement for
@@ -176,7 +176,7 @@ html_static_path = ['_static']
 #html_file_suffix = None
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'rhyzomedoc'
+htmlhelp_basename = 'poplardoc'
 
 
 # -- Options for LaTeX output ---------------------------------------------
@@ -196,7 +196,7 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-  ('index', 'rhyzome.tex', u'rhyzo.me Documentation',
+  ('index', 'poplar.tex', u'poplar Documentation',
    u'Nathan Charles', 'manual'),
 ]
 
@@ -226,7 +226,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    ('index', 'rhyzome', u'rhyzo.me Documentation',
+    ('index', 'poplar', u'poplar Documentation',
      [u'Nathan Charles'], 1)
 ]
 
@@ -240,8 +240,8 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-  ('index', 'rhyzome', u'rhyzo.me Documentation',
-   u'Nathan Charles', 'rhyzo.me', 'One line description of project.',
+  ('index', 'poplar', u'poplar Documentation',
+   u'Nathan Charles', 'poplar', 'Object based LCA Framework.',
    'Miscellaneous'),
 ]
 
