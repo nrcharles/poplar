@@ -1,15 +1,14 @@
-# goal: model 1 year
 from caelum import eere
 from loads import annual
 from devices import Domain, IdealStorage
 from devices import SimplePV, PVSystem, MPPTChargeController, SimpleChargeController
-from misc import heatmap
+from misc import heatmap, latexify
 import networkx as nx
 
 import numpy as np
 import matplotlib.pyplot as plt
-#import matplotlib
-#matplotlib.rcParams.update({'font.size': 18})
+# import matplotlib
+# matplotlib.rcParams.update({'font.size': 18})
 import scipy.stats as stats
 
 import sys
@@ -25,7 +24,7 @@ def model(z):
     # SHS = Domain(load=spline_profile,
     SHS = Domain(load=annual(),
                  gen=PVSystem([MPPTChargeController([SimplePV(pv)])],
-                 #gen=PVSystem([SimpleChargeController(SimplePV(pv))],
+                 # gen=PVSystem([SimpleChargeController(SimplePV(pv))],
                               PLACE, 24.81, 180.),
                  storage=IdealStorage(size))
     for i in eere.EPWdata('418830'):
@@ -33,18 +32,13 @@ def model(z):
     SHS.storage.details()
     return SHS
 
-def latexify(s):
-    s = s.replace('%','\\%')
-    s = s.replace('$','\\$')
-    return s
 
 def report(domain, figname='SHS', title=None):
+    """Generate a PDF report of a domain"""
     if title is None:
         title = figname
     storage = domain.storage
     storage.details()
-    pv = max(domain.g)
-    size = storage.capacity
     fig = plt.figure(figsize=(8.5, 11))
     ax = fig.add_subplot(321)
     ax.set_xlabel('SoC')
@@ -111,26 +105,34 @@ def report(domain, figname='SHS', title=None):
     print
     ax6 = fig.add_subplot(326)
     G = domain.graph()
-    nx.draw(G, pos=nx.spring_layout(G),ax=ax6)
-    #ax6.text(0., 0., s, fontsize=8)
-    p = 1.1
-    x1,x2 = ax6.get_xlim()
-    y1,y2 = ax6.get_ylim()
-    ax6.set_xlim(x1*p,x2*p)
-    ax6.set_ylim(y1*p,y2*p)
+    pos = nx.spectral_layout(G)
+    lpos = {}
+    for i in pos.iterkeys():
+        lpos[i] = pos[i] + [0, .15]
+    nx.draw_networkx_nodes(G, pos=pos, ax=ax6, node_size=200)
+    nx.draw_networkx_edges(G, pos=pos, ax=ax6)
+    nx.draw_networkx_labels(G, pos=lpos, font_size=7, rotation=45)
+    # ax6.text(0., 0., s, fontsize=8)
+    p = 1.2
+    x1, x2 = ax6.get_xlim()
+    y1, y2 = ax6.get_ylim()
+    ax6.set_xlim(x1*p, x2*p)
+    ax6.set_ylim(y1*p, y2*p)
     ax6.axis('off')
-    #ax6.autoscale_view()
+    # ax6.autoscale_view()
     # print 'PV Array (kW) %s' % (pv/1000.)
     # print 'Storage (wH) %s' % size
     # print 'Loads/Depletion:?'
-    #system_merit([domain])
+    # system_merit([domain])
     # fig.suptitle(title)
     fig.tight_layout()
     # plt.show()
     # plt.draw()
     fig.savefig('%s.pdf' % figname)
 
+
 def system_merit(domains):
+    """calulate merit for various parameters"""
     a = 0
     t = 0
     c = 0
