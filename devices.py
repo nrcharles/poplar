@@ -120,6 +120,11 @@ class IdealStorage(Device):
     Note:
         This is an ideal, there are no self discharge or efficiency losses,
         peukert effect, charge rate adjustments or thermal adjustments
+
+    Attributes:
+        throughput (float): kWh into battery
+        surplus (float): kWh excess energy
+        drained_hours (float): hours empty
     """
     def __init__(self, capacity, chemistry=None):
         """
@@ -276,7 +281,7 @@ class SimplePV(Device):
         return self.nameplate()/1000./.2
 
     def co2(self):
-        """CO2 for SystemSeed
+        """CO2 for system
         Note:
         Assuming 1500 kg/kw
         ~41g/kWh
@@ -484,9 +489,20 @@ class Domain(Device):
         return self.storage.capacity/l_med  # hours
 
     def eta(self):
+        """System efficiency
+
+        .. math:: \eta_{T} = \frac{\sum{Loads}}{\sum{Generation}}
+
+        """
         return sum(self.net_l)/(sum(self.g)+self.gen.losses())
 
     def capacity_factor(self):
+        """Capacity Factor
+
+        .. math:: C_{f} = \frac{\sum{Loads}}{G_{P}\cdot 365 \cdot 24}
+        Where Gp is peak generation
+
+        """
         if self.gen:
             return sum(self.net_l)/(self.gen.nameplate()*24*365)
         else:
