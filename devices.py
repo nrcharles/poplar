@@ -5,12 +5,15 @@ import networkx as nx
 
 
 class Device(object):
-    """Device Object
+    """Device LCA Object
 
-    Parameters:
+    The premise of this tool is that Devices have LCA values.  This class is
+    inherited to create the modeling framework.
+
+    Attributes:
         children (list): list of children
-        device_co2 (float): cumulative energy losses (Wh)
-        device_tox (float): device_tox
+        device_co2 (float): co2 eq footprint
+        device_tox (float): device toxicity
         device_cost (float): device cost
         """
     def __init__(self, array_like):
@@ -21,34 +24,61 @@ class Device(object):
         self.device_area = 0.
 
     def parameter(self, name):
-        v = 0
+        """Default parameter method
+
+        Accounts for arbitrary attributes on Device objects.
+
+        Returns:
+            (float)
+
+        """
+        v = 0.
         if hasattr(self, 'children'):
             for i in self.children:
-                if hasattr(i,name):
-                    v+= getattr(i,name)()
-        if hasattr(self,'device_%s' % name):
-            v += getattr(self,'device_%s' % name)
+                if hasattr(i, name):
+                    v += getattr(i, name)()
+        if hasattr(self, 'device_%s' % name):
+            v += getattr(self, 'device_%s' % name)
         return v
 
     def co2(self):
+        """CO2 eq footprint
+
+        Returns:
+            (float): g CO2 eq
+        """
         return self.parameter('co2')
 
     def tox(self):
+        """Toxicity footprint
+
+        Returns:
+            (float): CTUh
+        """
         return self.parameter('tox')
 
     def cost(self):
+        """Device cost
+
+        Returns:
+            (float): USD
+        """
         return self.parameter('cost')
 
     def area(self):
-        name = 'area'
-        v = 0
-        if hasattr(self, 'children'):
-            v += sum([getattr(i,name)() for i in self.children])
-        if hasattr(self,'device_%s' % name):
-            v += getattr(self,'device_%s' % name)
-        return v
+        """Device footprint
+
+        Returns:
+            (float): m^2
+        """
+        return self.parameter('area')
 
     def graph(self):
+        """Device Graph
+
+        Returns:
+            (Graph)
+        """
         G = nx.Graph()
         G.add_node(self)
         if hasattr(self, 'children'):
@@ -61,7 +91,8 @@ class Device(object):
     def __repr__(self):
         return 'Device'
 
-class LA(object):
+
+class FLA(object):
     def __init__(self):
         """ Flooded Lead Acid Battery Parameters
 
@@ -84,21 +115,20 @@ class LA(object):
 
 class IdealStorage(Device):
     """Ideal Storage class
-    no self discharge
-    no efficiency losses
-    no peukert
-    no charge rate adjustments
-    no thermal adjustements
+
+    Note:
+        This is an ideal, there are no self discharge or efficiency losses,
+        peukert effect, charge rate adjustments or thermal adjustments
     """
     def __init__(self, capacity, chemistry=None):
         """
-        Note:
-            capacity is usable capacity in wh
-
+        Args:
+            capacity (float): Wh
+            chemistry (object); Battery Chemistry Parameters (default FLA)
 
         """
         if chemistry is None:
-            self.chem = LA()
+            self.chem = FLA()
         self.capacity = capacity
         self.state = capacity  # start full
         self.throughput = 0.
@@ -134,8 +164,17 @@ class IdealStorage(Device):
         prospective = self.throughput/1000.*self.chem.cost_kw
         return prospective
 
-    def power_io(self, power, hours=1.0):
-        "power in watts"
+    def power_io(self, power, hours=1.):
+        """Power input/outpu
+
+        Args:
+            power (float): watts positive charging, negative discharging
+            hours (float): time delta (default 1 hour)
+
+        Returns:
+            energy (float): watt hours constrained, +/- full/discharged
+
+            """
         energy = power*hours
         self.in_use += hours
 
@@ -175,7 +214,13 @@ class IdealStorage(Device):
         return e_delta - energy
 
     def autonomy(self):
-        """ this might be stupid"""
+        """ Autonomy C/median discharge rate
+
+        this might be stupid, but median discharge rate is in watts,
+        1 C discharge rate is in watt hours. So 1C over median discharge
+        rate looks like the reciprocal.
+
+        """
         median_c = np.median(self.c_out)
         return abs(1.0/median_c)
 
@@ -186,8 +231,6 @@ class IdealStorage(Device):
         return self.state/self.capacity
 
     def details(self):
-        # print '#ELCC'
-        # print '#LOLP'
         soc_series = np.array(self.state_series)
         results = {
             'shortfall (wh)': significant(self.shortfall),  # ENS
@@ -199,27 +242,11 @@ class IdealStorage(Device):
             'mean soc (%)': round(soc_series.mean()*100, 1),
             'median soc (%)': round(np.median(soc_series)*100, 1),
             'Autonomy 1/C (hours)': significant(self.autonomy())}
-#        'storage cost (US)' : round(self.cost(),2),
-#        'storage depletion (US)' : round(self.depletion(),2),
         return results
 
     def __repr__(self):
         return '%s Wh %s Battery' % (self.chem.name,
                                      significant(self.capacity))
-
-
-class SystemSeed(object):
-    def __init__(self):
-        pass
-
-    def scale(self):
-        pass
-
-    def interconnect(self):
-        pass
-
-    def frequency_reg(self):
-        pass
 
 
 class SimplePV(Device):
@@ -261,6 +288,7 @@ class SimplePV(Device):
         return self.nameplate() * self.cost_watt
 
     def nameplate(self):
+        """Nameplate rating at STC conditions"""
         v, i = self.output(1000., 25.)
         W = v*i
         return W
@@ -407,7 +435,7 @@ class PVSystem(Device):
         return sum([i.output(irr, t_cell) for i in self.children])
 
     def depletion(self):
-        """1 year depletion assuming lifetime"""
+        """1 year depletion"""
         return self.cost()/self.life
 
     def losses(self):
@@ -506,7 +534,7 @@ class Domain(Device):
         if self.storage:
             d = g_t - l_t + self.storage
             self.d.append(d)
-            # todo: i don't like this accounting its currently being tracked
+            # todo: i don't like this accounting; its currently being tracked
             # in storage.
             # usable_g = g - surplus
             # net_l = l - shortfall
@@ -524,7 +552,8 @@ class Domain(Device):
             return d
 
     def depletion(self):
-        self.parameter('depletion')
+        #print sum([i.depletion() for i in self.children if hasattr(i,'depletion')])
+        return self.parameter('depletion')
 
     def rvalue(self):
         # todo: fix this, loads have rvalues not storage
@@ -533,6 +562,20 @@ class Domain(Device):
 
     def __repr__(self):
         return 'Domain $%s' % significant(self.cost())
+
+
+class SystemSeed(object):
+    def __init__(self):
+        pass
+
+    def scale(self):
+        pass
+
+    def interconnect(self):
+        pass
+
+    def frequency_reg(self):
+        pass
 
 
 class AdaptiveConsumer(object):
