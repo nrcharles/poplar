@@ -3,11 +3,12 @@
 This is an example optimization of a Solar Home System
 
 """
-from model import report
-from device import Domain, IdealStorage
-from device import SimplePV, PVSystem, MPPTChargeController
-from load import annual
+from devices import Domain, IdealStorage
+from devices import SimplePV, PVSystem, MPPTChargeController
+from loads import annual
 from caelum import eere
+import numpy as np
+from model import report
 
 PLACE = (24.811468, 89.334329)
 
