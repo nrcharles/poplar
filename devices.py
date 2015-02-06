@@ -32,6 +32,7 @@ class Device(object):
             (float)
 
         """
+        # This is redundant with node_iter
         v = 0.
         if hasattr(self, 'children'):
             for i in self.children:
@@ -74,7 +75,7 @@ class Device(object):
         return self.parameter('area')
 
     def graph(self):
-        """Device Graph
+        """Device Graph of all sub devices
 
         Returns:
             (Graph)

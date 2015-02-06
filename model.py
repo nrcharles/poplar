@@ -8,6 +8,8 @@ import networkx as nx
 
 import numpy as np
 import matplotlib.pyplot as plt
+#import matplotlib
+#matplotlib.rcParams.update({'font.size': 18})
 import scipy.stats as stats
 
 import sys
@@ -45,6 +47,8 @@ def report(domain, figname='SHS', title=None):
     size = storage.capacity
     fig = plt.figure(figsize=(8.5, 11))
     ax = fig.add_subplot(321)
+    ax.set_xlabel('SoC')
+    ax.set_ylabel('Frequency')
     ax.set_title('Storage Frequency Histogram')
     pp = np.array(storage.state_series)
     pp.sort()
@@ -59,16 +63,22 @@ def report(domain, figname='SHS', title=None):
     b1 = fig.colorbar(soc)
     b1.set_label('%')
     ax3 = fig.add_subplot(323)
+    ax3.set_xlabel('day')
+    ax3.set_ylabel('hour')
     ax3.set_title('Demand Profile')
     lp = ax3.imshow(heatmap(domain.l), aspect='auto')
     b2 = fig.colorbar(lp)
     b2.set_label('W')
     ax4 = fig.add_subplot(324)
+    ax4.set_xlabel('day')
+    ax4.set_ylabel('hour')
     ax4.set_title('Generator Output')
     gp = ax4.imshow(heatmap(domain.g), aspect='auto')
     b3 = fig.colorbar(gp)
     b3.set_label('W')
     ax5 = fig.add_subplot(325)
+    ax5.set_xlabel('day')
+    ax5.set_ylabel('hour')
     ax5.set_title('Battery Constraint')
     bc = ax5.imshow(heatmap(domain.d), aspect='auto')
     # b = ax5.imshow(heatmap(domain.d),aspect='auto',cmap = plt.cm.Greys_r)
@@ -103,8 +113,13 @@ def report(domain, figname='SHS', title=None):
     G = domain.graph()
     nx.draw(G, pos=nx.spring_layout(G),ax=ax6)
     #ax6.text(0., 0., s, fontsize=8)
+    p = 1.1
+    x1,x2 = ax6.get_xlim()
+    y1,y2 = ax6.get_ylim()
+    ax6.set_xlim(x1*p,x2*p)
+    ax6.set_ylim(y1*p,y2*p)
     ax6.axis('off')
-    ax6.autoscale_view()
+    #ax6.autoscale_view()
     # print 'PV Array (kW) %s' % (pv/1000.)
     # print 'Storage (wH) %s' % size
     # print 'Loads/Depletion:?'
