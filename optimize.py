@@ -1,3 +1,8 @@
+"""Optimization Example
+
+This is an example optimization of a Solar Home System
+
+"""
 from model import report
 from device import Domain, IdealStorage
 from device import SimplePV, PVSystem, MPPTChargeController
@@ -19,6 +24,13 @@ PLACE = (24.811468, 89.334329)
 
 class Case(object):
     def __init__(self, cc, merit):
+        """Test Case
+
+        Args:
+            merit (function): function to calculate merit
+            cc (object):  Charge Controller
+
+        """
         self.merit = merit
         self.cc = cc
 
@@ -57,6 +69,6 @@ if __name__=='__main__':
     # r = optimize.basinhopping(model,x0,niter=1)
     print r
     s, p = r['x']
-    report(model((s, p)), 'mppt_p_optimized_05_lolh')
+    #report(model((s, p)), 'mppt_p_optimized_05_lolh')
     # optimize.basinhopping(model,x0,niter=10)
     # optimize.anneal(model,x0,maxiter=10,upper=1000,lower=0)
