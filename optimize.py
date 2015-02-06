@@ -8,11 +8,9 @@ from devices import SimplePV, PVSystem, MPPTChargeController
 from loads import annual
 from caelum import eere
 import numpy as np
-from model import report
 
 PLACE = (24.811468, 89.334329)
 
-# is Pyomo an option???
 # SHS = Domain(load=DailyLoad([0,18,19,22,21,24],[0,0,1,1,0,0]),
 # Parameters
 # battery chemistry LA,LI
@@ -24,6 +22,7 @@ PLACE = (24.811468, 89.334329)
 # tilt & azimuth?
 
 class Case(object):
+    """Example Test Case"""
     def __init__(self, cc, merit):
         """Test Case
 
@@ -35,7 +34,7 @@ class Case(object):
         self.merit = merit
         self.cc = cc
 
-    def __call__(self, parameters):
+    def model(self, parameters):
         size, pv = parameters
         pv = max(pv, 0)
         size = max(size, 0)
@@ -45,11 +44,24 @@ class Case(object):
                                   PLACE, 24.81, 180.),
                      storage=IdealStorage(size))
         SHS.weather_series(eere.EPWdata('418830'))
-        SHS.storage.details()
+        print SHS.storage.details()
+        return SHS
+
+    def __call__(self, parameters):
+        """Default Method
+        """
+        SHS = self.model(parameters)
+
         return self.merit(SHS)
 
 
 class LolhMerit(object):
+    """Example merit class
+
+    Merit is based on Minimum Price with Loss of Load Hours (LOLH) having a
+    cost per hour.
+
+    """
     def __init__(self, lolhcost):
         self.lolhcost = lolhcost
 
@@ -62,14 +74,13 @@ class LolhMerit(object):
 
 if __name__=='__main__':
     from scipy import optimize
+    from visuals import report
     merit = LolhMerit(.05)
     case1 = Case(MPPTChargeController, merit)
     # initial guess
     x0 = np.array([180., 110.])
-    r = optimize.minimize(case1, x0)
-    # r = optimize.basinhopping(model,x0,niter=1)
+    #r = optimize.minimize(case1, x0)
+    r = optimize.basinhopping(case1,x0,niter=2)
     print r
     s, p = r['x']
-    #report(model((s, p)), 'mppt_p_optimized_05_lolh')
-    # optimize.basinhopping(model,x0,niter=10)
-    # optimize.anneal(model,x0,maxiter=10,upper=1000,lower=0)
+    report(case1.model((s, p)), 'mppt_p_basin_05_lolh')
