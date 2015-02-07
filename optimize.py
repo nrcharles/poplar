@@ -1,6 +1,7 @@
-"""Optimization Example
+"""Optimization Example:
 
-This is an example optimization of a Solar Home System
+Adjust battery capacity and pv size to minimize price of a Solar Home System
+for a location.
 
 """
 from devices import Domain, IdealStorage
@@ -11,15 +12,16 @@ import numpy as np
 
 PLACE = (24.811468, 89.334329)
 
-# SHS = Domain(load=DailyLoad([0,18,19,22,21,24],[0,0,1,1,0,0]),
-# Parameters
+# Parameters that could be tested
 # battery chemistry LA,LI
 # charge controller Simple, MPPT
 # reliablity domains
 # net metering
-# load profiles
+# various load profiles
+# enhanced DSM
 # storage size
-# tilt & azimuth?
+# tilt & azimuth
+
 
 class Case(object):
     """Example Test Case"""
@@ -72,15 +74,16 @@ class LolhMerit(object):
         return total
 
 
-if __name__=='__main__':
+if __name__ == '__main__':
     from scipy import optimize
     from visuals import report
-    merit = LolhMerit(.05)
+    merit = LolhMerit(1.0)
     case1 = Case(MPPTChargeController, merit)
     # initial guess
     x0 = np.array([180., 110.])
-    #r = optimize.minimize(case1, x0)
-    r = optimize.basinhopping(case1,x0,niter=2)
+    # Basin-hopping is a stochastic algorithm which attempts to find the global
+    # minimum of a smooth scalar function of one or more variables
+    r = optimize.basinhopping(case1, x0, niter=2)
     print r
     s, p = r['x']
-    report(case1.model((s, p)), 'mppt_p_basin_05_lolh')
+    report(case1.model((s, p)), 'mppt_p_basin_1_lolh')
