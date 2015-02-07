@@ -1,3 +1,9 @@
+"""Loads
+
+This Module contains various loads that can be used to acess system
+configurations.
+
+"""
 import csv
 import datetime
 import numpy as np
@@ -5,7 +11,6 @@ import random
 from scipy.interpolate import interp1d
 from devices import Device
 
-#Load BD Historical Data
 FMT = '%Y-%m-%d %H:%M:%S'
 
 LOAD_PROFILE = [0.645, 0.615, 0.585, 0.569, 0.552, 0.541, 0.53, 0.525, 0.521,
@@ -21,15 +26,9 @@ def simple_profile(dt, mult=1.):
     return LOAD_PROFILE[offset] * mult
 
 
-def annual_2014(dt, mult=7.):
-    mdt = datetime.date(2014, dt.month, dt.day)
-    offset = (int(round(dt.hour*2.0))+0) % 48
-    return BD[mdt][offset]*mult/4000.
-
-
 def load(filename=None):
     BD = {}
-    if filename == None:
+    if filename is None:
         filename = './profiles.csv'
     foo = csv.reader(open(filename))
     for i in foo:
@@ -43,23 +42,59 @@ def load(filename=None):
 class annual(Device):
     """Annual Weather Data Nominilized to 1 kWH annual
 
-    Parameters:
-        mult (float): scaling parameter (default 71.4)
-        year (int): year to choose (default 2013)
+    This is class is based on typical Bangladesh grid loads. The data was mined
+    from Bangladesh Power Development Boards daily reporting. It is nominilized
+    to 1 kWh annual load and can be scaled using a multiplier to have a desired
+    total load.
 
-
+    Attributes:
+        mult (float): scaling factor
+        year (int): year
     """
     def __init__(self, mult=71.4, year=2013):
+        """
+        Parameters:
+            mult (float): scaling factor (default 71.4)
+            year (int): (default 2013)
+
+        """
         self.mult = mult
         self.year = year
         self.data = load()
 
     def __call__(self, dt):
+        """ Load at time
+
+        >>> BD = annual(100.)
+        >>> round(BD(datetime.datetime(2014, 12, 16, 20)),1)
+        11.7
+
+        >>> round(BD(datetime.datetime(2014, 1, 16, 3)), 1)
+        7.2
+
+        Args:
+            dt (datetime)
+
+        Returns:
+            (float) Wh
+
+        """
         mdt = datetime.date(self.year, dt.month, dt.day)
         offset = int(round(dt.hour*2.0))
-        return self.data[mdt][offset]*self.mult/40800.
+        return self.data[mdt][offset]*self.mult/40812.5
 
     def total(self):
+        """Total Load for Year
+
+        >>> BD = annual(100.)
+        >>> round(BD.total(), 1)
+        100000.0
+
+
+        Returns:
+            (float) Wh
+
+        """
         new_year = datetime.datetime(2013, 1, 1)
         hour_to_dt = lambda x: new_year + datetime.timedelta(hours=x)
         return sum(self(hour_to_dt(i)) for i in range(365*24))
@@ -86,10 +121,18 @@ def noisy_profile(t):
     return spline_profile(t)*(.9+random.random()/5.)
 
 
+def quantify_load(load, solar_gen):
+    """How much of a load can be met by sunlight
+
+    """
+    l = np.array(load)
+    g = np.array(solar_gen)
+
+    d = g - l
+    met_hours = sum(d >= 0)
+    unmet_hours = sum(d < 0)
+    return met_hours/unmet_hours
+
 if __name__ == '__main__':
-    # import datetime
-    print simple_profile(datetime.datetime.now())
-    BD = annual()
-    print BD(datetime.datetime.now())
-    print BD(datetime.datetime(2014, 12, 16, 20))*4000/17.
-    print BD(datetime.datetime(2014, 1, 16, 3))*4000 / 17.
+    import doctest
+    doctest.testmod()
