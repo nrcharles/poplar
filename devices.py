@@ -12,7 +12,7 @@ class Device(object):
 
     Attributes:
         children (list): list of children
-        device_co2 (float): co2 eq footprint
+        device_co2 (float): kg co2 eq footprint
         device_tox (float): device toxicity
         device_cost (float): device cost
         """
@@ -46,7 +46,7 @@ class Device(object):
         """CO2 eq footprint
 
         Returns:
-            (float): g CO2 eq
+            (float): kg CO2 eq
         """
         return self.parameter('co2')
 
@@ -95,7 +95,7 @@ class Device(object):
 
 class FLA(object):
     def __init__(self):
-        """Flooded Lead Acid Battery Parameters
+        """Flooded Lead Acid Battery Parameters :cite:`McManus2012`
 
         Attributes:
             usable (float): Usable/Effective capacity (ratio)
@@ -107,7 +107,7 @@ class FLA(object):
         """
         self.name = 'FLA'
         self.usable = .5
-        self.co2_g = 7000.
+        self.co2_kg = 7.
         self.tox_kg = 8.
         self.density = 50.
         self.cost_kg = 4.5
@@ -156,7 +156,7 @@ class IdealStorage(Device):
         return self.weight()*self.chem.tox_kg
 
     def co2(self):
-        return self.weight()*self.chem.co2_g
+        return self.weight()*self.chem.co2_kg
 
     def weight(self):
         """weight in kg"""
@@ -180,7 +180,14 @@ class IdealStorage(Device):
         return prospective
 
     def power_io(self, power, hours=1.):
-        """Power input/outpu
+        """Power input/output
+
+        >>> s = IdealStorage(100)
+        >>> 10 + s
+        -10.0
+
+        >>> - 10 + s
+        0.0
 
         Args:
             power (float): watts positive charging, negative discharging
@@ -271,11 +278,13 @@ class IdealStorage(Device):
 class SimplePV(Device):
     """Simple PV module (Generic)
 
+    Note: Constants choosen based on typical manufacturer data
+
     Parameters:
-        vmp (float): voltage
         imp (float): current
         cost_watt (float): cost (USD/w)
         tc_vmp (float): voltage temperature coefficent (V/C)
+        tc_imp (float): current temperature coefficent (V/C)
 
     """
     def __init__(self, W):
@@ -283,12 +292,13 @@ class SimplePV(Device):
         v_bus = [24, 20, 12]
         self.cost_watt = .8
         for v in v_bus:
-            vmp = v*1.45
+            vmp = v*1.35
             imp = W/vmp
             if imp < imax:
                 self.vmp = vmp
                 self.imp = imp
-        self.tc_vmp = self.vmp * -0.004
+        self.tc_vmp = self.vmp * -0.0044
+        self.tc_imp = self.imp * 0.0004
 
     def area(self):
         return self.nameplate()/1000./.2
@@ -296,11 +306,14 @@ class SimplePV(Device):
     def co2(self):
         """CO2 for system
         Note:
-        Assuming 1500 kg/kw
-        ~41g/kWh
-        ~36500 hours of operation
+        Assuming 1800 kg/kWp
+        ~1600-2000/kWp :cite:`laleman2013comparing`
+
+        Returns:
+            (float): kg CO2 eq
         """
-        return 1.5 * self.nameplate()/1000.
+
+        return 1.8 * self.nameplate()
 
     def cost(self):
         """total module cost"""
@@ -313,9 +326,43 @@ class SimplePV(Device):
         return W
 
     def output(self, irr, t_cell):
-        """temperature compensated module output"""
-        vmp = self.vmp - (25-t_cell) * self.tc_vmp
-        return vmp, self.imp*irr/1000.
+        """Temperature compensated module output
+
+        Note: this is a heuristic method
+
+
+        This is often calulated either by :cite:`DeSoto2006`, :cite:`King2007`
+        or :cite:`Dobos2012`.
+
+        For performance temperature compensation is simplified to:
+
+        .. math:: V_{mp} = V_{mpo} + \\beta_{Vmp}(T_{c} - T_{o})
+
+        >>> pv = SimplePV(133.4)
+        >>> v, i = pv(1000, 25.)
+        >>> round(v*i, 1)  # NIST: 133.4
+        133.4
+
+        >>> v, i = pv(882.6, 39.5)
+        >>> round(v*i, 1)  # NIST 109.5
+        110.2
+
+        >>> v, i = pv(696.0, 47.0)
+        >>> round(v*i, 1)  # NIST 80.1 i+
+        83.9
+
+        >>> v, i = pv(465.7, 32.2)
+        >>> round(v*i, 1) # NIST 62.7
+        60.2
+
+        >>> v, i = pv(189.9, 36.5)
+        >>> round(v*i, 1)  # NIST 23.8
+        24.1
+
+        """
+        vmp = self.vmp + (t_cell - 25.) * self.tc_vmp
+
+        return vmp, self.imp * irr / 1000.
 
     def tox(self):
         return self.nameplate()*.3
@@ -404,9 +451,9 @@ class MPPTChargeController(ChargeController):
         Assumes that all modules are similar voltages and that the efficiency
         curve is linear.
 
-        .. math:: output = input \cdot \eta
+        .. math:: output = input \\cdot \\eta
 
-        .. math:: losses = input \cdot (1 -\eta)
+        .. math:: losses = input \\cdot (1 -\\eta)
 
         Args:
             irr (float): irradiance W/m^2 or irradiation in Wh/m^2
@@ -456,9 +503,9 @@ class SimpleChargeController(ChargeController):
         """Output of Simple charge controller.
 
 
-        .. math:: output = V_{nom} \cdot i
+        .. math:: output = V_{nom} \\cdot i
 
-        .. math:: losses = (V_{module} - V_{nom}) \cdot i
+        .. math:: losses = (V_{module} - V_{nom}) \\cdot i
 
         Args:
             irr (float): irradiance W/m^2 or irradiation in Wh/m^2
@@ -577,7 +624,8 @@ class Domain(Device):
     def eta(self):
         """Domain efficiency
 
-        .. math:: \eta_{T} = \frac{\sum{Loads}}{\sum{Generation}}
+        .. math:: \\eta_{T} = \\frac{\\sum{Loads}}{\\sum{Generation}}
+
 
         """
 
@@ -586,9 +634,10 @@ class Domain(Device):
     def capacity_factor(self):
         """Capacity Factor Cf
 
-        .. math:: C_{f} = \frac{\sum{Loads}}{G_{P}\cdot 365 \cdot 24}
+        .. math:: C_{f} = \\frac{\\sum{Loads}}{G_{P}\\cdot 365 \\cdot 24}
 
         Where Gp is peak generation
+
         """
         if self.gen:
             return sum(self.net_l)/(self.gen.nameplate()*24*365)
@@ -605,7 +654,7 @@ class Domain(Device):
             'Domain depletion (USD)': significant(self.depletion()),
             'A (m2)': significant(self.gen.area()),
             'Tox (CTUh)': significant(self.tox()),
-            'CO2 (gCO2 eq)': significant(self.co2()),
+            'CO2 (kgCO2 eq)': significant(self.co2()),
             'eta T (%)': significant(self.eta()*100)
         }
         if self.gen:
@@ -661,7 +710,6 @@ class Domain(Device):
             return d
 
     def depletion(self):
-        # print sum([i.depletion() for i in self.children if hasattr(i,'depletion')])
         return self.parameter('depletion')
 
     def rvalue(self):
@@ -695,3 +743,8 @@ class AdaptiveConsumer(object):
 class LoadShedRelay(object):
     def __init__(self):
         pass
+
+
+if __name__ == '__main__':
+    import doctest
+    doctest.testmod()
