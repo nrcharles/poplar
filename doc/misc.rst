@@ -1,8 +1,7 @@
 Misc
 =====
-Miscellaneous functions
+Miscellaneous functions that don't obviously belong elsewhere.
 
-    
 .. automodule:: misc
    :members:
 

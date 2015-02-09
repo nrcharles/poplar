@@ -13,16 +13,16 @@ various configurations and policies.
 It depends on several external libraries including solpy and caelum.
 
 -   `solpy Documentation <http://solpy.readthedocs.org/>`_
+-   `caelum Documentation <http://nrcharles.github.io/caelum/>`_
 .. _solpy: https://github.com/nrcharles/solpy
 .. _caelum: https://github.com/nrcharles/caelum
+
 
 
 .. toctree::
    :maxdepth: 2
 
-   devices
-   loads
-   misc
+   code
    optimize
 
 

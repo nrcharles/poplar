@@ -1,5 +1,0 @@
-Loads
-=====
-
-.. automodule:: loads
-   :members:
