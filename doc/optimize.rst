@@ -1,7 +1,7 @@
 Optimize
 ========
 
-In this section we will explore how we can use poplar to optimize the Bangladesh Solar Home System. 
+In this section we will explore how we can use poplar to optimize the Bangladesh Solar Home System.
 
 Case Study
 ----------
@@ -52,20 +52,36 @@ Notes
 For this testcase we will use the annual BD profile nominalized to a size
 relevant to the SHS sizing.
 
-Iterating over the space of PV size 5-250W and Battery Effective Capacity
-5-500 wH shows charts which help determine what is this optimization problem.
+Iterating over the space of PV size 5-200W and Battery Effective Capacity
+20-250 wH shows charts which help determine what is the nature of the
+optimization problem.
 
-Impact is:
+Technology
+^^^^^^^^^^
+maximize: net load
+
+
+Environment
+^^^^^^^^^^^
 
 .. math :: I_{T} = I_{D} + C_{0} \cdot C_{B} + C_{1} \cdot S_{PV}
 
 
 Where C0 and C1 are constants with units Impact/Capacity and Impact/Watt Peak
-respectively.  Thus is minimizing impact is to reduce the system size to the
+respectively.
+
+Economic
+^^^^^^^^
+minimizes P also minimizes I
+
+Risk
+^^^^
+
+
+Thus is minimizing impact is to reduce the system size to the
 minimum that still gives reliable service?
 
 Or is it to maximize efficiency?
-
 
 .. _figlem:
 

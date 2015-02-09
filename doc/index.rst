@@ -1,14 +1,20 @@
 Welcome to poplar
 =================
 
-poplar is an framework to optimize photovoltaic solar energy systems,
-particularly those that integrate storage and demand response resources.
+Access to safe, clean, reliable energy for a reasonable price could be
+considered a fundamental human right, yet much of the world still lacks access.
+The social benefits of energy are myriad.  Energy is critical to economic
+development and poverty reduction. :cite:`TheWorldBankGroup2009` The value of
+solar of in the developing world has been largely established,
+:cite:`PA2014,BloombergNewEnergyFinance2014` but there is a need for flexible
+resources. :cite:`InternationalEnergyAgency2012`
 
-poplar attempts to correlate python objects with real world devices to allow
-optimization of solar energy systems with various constraints. The theory is
-that implementing a bottom up device model should allow the exploration of
-various configurations and policies.
-
+poplar was designed as a framework to to study the microgrid energy usage from
+the bottom up. Correlating python objects with real world and theoretical
+devices allows for rapid exploration  of various configurations and policies to
+determine priorities and size and optimize photovoltaic solar
+energy systems designs, particularly those that integrate storage and demand
+side management devices.
 
 It depends on several external libraries including solpy and caelum.
 
