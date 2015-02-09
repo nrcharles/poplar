@@ -11,11 +11,12 @@ class Device(object):
     inherited to create the modeling framework.
 
     Attributes:
-        children (list): list of children
-        device_co2 (float): kg co2 eq footprint
-        device_tox (float): device toxicity
-        device_cost (float): device cost
-        """
+        children: (list) list of children.
+        device_co2: (float) kg co2 eq footprint.
+        device_tox: (float) device toxicity.
+        device_cost: (float) device cost.
+
+    """
     def __init__(self, array_like):
         self.children = array_like
         self.device_cost = 0.
@@ -28,8 +29,11 @@ class Device(object):
 
         Accounts for arbitrary attributes on Device objects.
 
+        Args:
+            name (string): name of parameter function.
+
         Returns:
-            (float)
+            (float): sum of parameter for all decendants.
 
         """
         # This is redundant with node_iter
@@ -46,7 +50,7 @@ class Device(object):
         """CO2 eq footprint
 
         Returns:
-            (float): kg CO2 eq
+            (float): kg CO2 eq.
         """
         return self.parameter('co2')
 
@@ -75,7 +79,7 @@ class Device(object):
         return self.parameter('area')
 
     def graph(self):
-        """Device Graph of all sub devices
+        """Device Graph of all decendant devices
 
         Returns:
             (Graph)
@@ -98,11 +102,11 @@ class FLA(object):
         """Flooded Lead Acid Battery Parameters :cite:`McManus2012`
 
         Attributes:
-            usable (float): Usable/Effective capacity (ratio)
-            tox_kg (float): Human Toxicity Factor (CTUh/kg)
-            density (float): energy density, (wh / kg)
-            cost_kg (float): cost of storage, (USD/kg)
-            cost_kw (float): depletion/usage cost per kw (USD/kw)
+            usable: (float) Usable/Effective capacity (ratio).
+            tox_kg: (float) Human Toxicity Factor (CTUh/kg).
+            density: (float) energy density, (wh / kg).
+            cost_kg: (float) cost of storage, (USD/kg).
+            cost_kw: (float) depletion/usage cost per kw (USD/kw).
 
         """
         self.name = 'FLA'
@@ -111,7 +115,7 @@ class FLA(object):
         self.tox_kg = 8.
         self.density = 50.
         self.cost_kg = 4.5
-        self.cost_kw = .13
+        self.cost_kwh = .13
 
 
 class IdealStorage(Device):
@@ -119,23 +123,25 @@ class IdealStorage(Device):
 
     Note:
         This is an ideal, there are no self discharge or efficiency losses,
-        peukert effect, charge rate adjustments or thermal adjustments
+        peukert effect, charge rate adjustments or thermal adjustments.
 
     Attributes:
-        throughput (float): kWh into battery
-        surplus (float): kWh excess energy
-        drained_hours (float): hours empty
+        throughput: (float) kWh into battery.
+        surplus: (float) Wh excess energy.
+        nominal_capacity: (float) in Wh.
+        drained_hours: (float) hours empty.
     """
     def __init__(self, capacity, chemistry=None):
         """
         Args:
-            capacity (float): Wh
-            chemistry (object); Battery Chemistry Parameters (default FLA)
+            capacity: (float) Wh.
+            chemistry: (object) Battery Chemistry Parameters (default FLA).
 
         """
         if chemistry is None:
             self.chem = FLA()
-        self.capacity = capacity
+        self.nominal_capacity = capacity
+        self.classification = "storage"
         self.state = capacity  # start full
         self.throughput = 0.
         self.surplus = 0.
@@ -147,10 +153,6 @@ class IdealStorage(Device):
         self.loss_occurence = 0
         self.c_in = []
         self.c_out = []
-        self.r = 1.
-
-    def rvalue(self):
-        return self.r*self.loss_occurence
 
     def tox(self):
         return self.weight()*self.chem.tox_kg
@@ -160,23 +162,44 @@ class IdealStorage(Device):
 
     def weight(self):
         """weight in kg"""
-        return self.capacity/self.chem.usable/self.chem.density
+        return self.nominal_capacity/self.chem.usable/self.chem.density
 
     def cost(self):
         fixed = self.weight()*self.chem.cost_kg
         return fixed
 
-    def depletion(self):
-        """battery depletion expense
+    def capacity(self):
+        return self.nominal_capacity
 
-        This is a simple calculation that levelizes battery replacement costs
+    def hasenergy(self):
+        """Determine if a device has energy
+        """
+        return self.state
+
+    def needsenergy(self):
+        """Determine if device needs energy
+        """
+        return self.nominal_capacity - self.state
+
+    def sell_kwh(self):
+        """Cost of withdrawing energy"""
+        return self.chem.cost_kwh
+
+    def buy_kwh(self):
+        """Value of storing energy"""
+        return self.chem.cost_kwh
+
+    def depletion(self):
+        """Battery depletion expense
+
+        This is a simple calculation that levelizes battery replacement costs.
 
         .. math:: (kWh throughput) \cdot (kWh cost)
 
         Returns:
             (float) USD
         """
-        prospective = self.throughput/1000.*self.chem.cost_kw
+        prospective = self.throughput/1000.*self.chem.cost_kwh
         return prospective
 
     def power_io(self, power, hours=1.):
@@ -190,11 +213,11 @@ class IdealStorage(Device):
         0.0
 
         Args:
-            power (float): watts positive charging, negative discharging
-            hours (float): time delta (default 1 hour)
+            power: (float) watts positive charging, negative discharging.
+            hours: (float) time delta (default 1 hour).
 
         Returns:
-            energy (float): watt hours constrained, +/- full/discharged
+            energy: (float) watt hours constrained, +/- full/discharged.
 
             """
         energy = power*hours
@@ -202,8 +225,8 @@ class IdealStorage(Device):
 
         if energy > 0:
             # Track C rate
-            self.c_in.append(energy/self.capacity)
-            max_in = self.capacity - self.state
+            self.c_in.append(energy/self.nominal_capacity)
+            max_in = self.nominal_capacity - self.state
             e_delta = min(energy, max_in)
             self.state += e_delta
             if e_delta != energy:
@@ -216,7 +239,7 @@ class IdealStorage(Device):
 
         if energy < 0:
             # Track C rate
-            self.c_out.append(energy/self.capacity)
+            self.c_out.append(energy/self.nominal_capacity)
             max_out = self.state
             e_delta = - min(-energy, max_out)
             self.state += e_delta
@@ -232,7 +255,7 @@ class IdealStorage(Device):
         if energy == 0:
             if self.state == 0:
                 self.drained_hours += hours
-            if self.state == self.capacity:
+            if self.state == self.nominal_capacity:
                 self.full_hours += hours
             e_delta = 0
 
@@ -254,37 +277,37 @@ class IdealStorage(Device):
         return self.power_io(x)
 
     def soc(self):
-        return self.state/self.capacity
+        return self.state/self.nominal_capacity
 
     def details(self):
         soc_series = np.array(self.state_series)
         results = {
-            'shortfall (wh)': significant(self.shortfall),  # ENS
-            'surplus (wh)': significant(self.surplus),
-            'full (hours)': significant(self.full_hours),
-            'lolh (hours)': significant(self.drained_hours),
-            'throughput (wh)': significant(self.throughput),
-            'loss occurence (n)': self.loss_occurence,
-            'mean soc (%)': round(soc_series.mean()*100, 1),
-            'median soc (%)': round(np.median(soc_series)*100, 1),
-            'Autonomy 1/C (hours)': significant(self.autonomy())}
+            'Storage shortfall (wh)': significant(self.shortfall),  # ENS
+            'Storage surplus (wh)': significant(self.surplus),
+            'Storage full (hours)': significant(self.full_hours),
+            'Storage lolh (hours)': significant(self.drained_hours),
+            'Storage throughput (wh)': significant(self.throughput),
+            'Storage outages (n)': self.loss_occurence,
+            'Storage mean soc (%)': round(soc_series.mean()*100, 1),
+            'Storage median soc (%)': round(np.median(soc_series)*100, 1),
+            'Storage Autonomy 1/C (hours)': significant(self.autonomy())}
         return results
 
     def __repr__(self):
-        return '%s Wh %s' % (significant(self.capacity),
+        return '%s Wh %s' % (significant(self.nominal_capacity),
                              self.chem.name)
 
 
 class SimplePV(Device):
     """Simple PV module (Generic)
 
-    Note: Constants choosen based on typical manufacturer data
+    Attributes:
+        imp: (float) current.
+        cost_watt: (float) cost (USD/w).
+        tc_vmp: (float) voltage temperature coefficent (V/C).
+        tc_imp: (float) current temperature coefficent (V/C).
 
-    Parameters:
-        imp (float): current
-        cost_watt (float): cost (USD/w)
-        tc_vmp (float): voltage temperature coefficent (V/C)
-        tc_imp (float): current temperature coefficent (V/C)
+    Note: Constants choosen based on typical manufacturer data
 
     """
     def __init__(self, W):
@@ -328,7 +351,7 @@ class SimplePV(Device):
     def output(self, irr, t_cell):
         """Temperature compensated module output
 
-        Note: this is a heuristic method
+        Note: this is a heuristic method.
 
 
         This is often calulated either by :cite:`DeSoto2006`, :cite:`King2007`
@@ -359,6 +382,12 @@ class SimplePV(Device):
         >>> round(v*i, 1)  # NIST 23.8
         24.1
 
+        Args:
+            irr: (float) W/m^2 irradiance or Wh/mh insolation.
+            t_cell: (float) temperature of cell in C.
+
+        Returns:
+            vmp, imp: (tuple) of voltage and current.
         """
         vmp = self.vmp + (t_cell - 25.) * self.tc_vmp
 
@@ -378,10 +407,10 @@ class SimplePV(Device):
 class ChargeController(Device):
     """Ideal Charge Controller
 
-    Parameters:
-        loss (float): cumulative energy losses (Wh)
-        array (object): PV Array
-        cost (float): device cost
+    Attributes:
+        loss (float): cumulative energy losses (Wh).
+        array (object): PV Array.
+        cost (float): device cost.
 
     """
     def __init__(self, array_like):
@@ -399,14 +428,15 @@ class ChargeController(Device):
     def output(self, irr, t_cell):
         """Output of Ideal charge controller.
 
-        Note: Assumes that all modules are similar voltages
-
         Args:
-            irr (float): irradiance W/m^2 or irradiation in Wh/m^2
-            t_cell (float): temperature of cell in C
+            irr (float): irradiance W/m^2 or irradiation in Wh/m^2.
+            t_cell (float): temperature of cell in C.
 
         Returns:
             (float): W or Wh depending on input units
+
+        Note: Assumes that all modules are similar voltages.
+
         """
         w = 0.
         for child in self.children:
@@ -423,20 +453,20 @@ class ChargeController(Device):
 class MPPTChargeController(ChargeController):
     """MPPT Charge Controller
 
-    Note: Assumes Linear efficiency curve
+    Attributes:
+        loss: (float) cumulative energy losses (Wh).
+        array: (object) PV Array.
+        efficiency: (float) energy conversion efficiency.
+        cost: (float) device cost.
 
-    Parameters:
-        loss (float): cumulative energy losses (Wh)
-        array (object): PV Array
-        efficiency (float): energy conversion efficiency
-        cost (float): device cost
+    Note: Assumes Linear efficiency curve
 
     """
     def __init__(self, array_like, efficiency=.95):
         """
         Args:
-            children (array_like): PV array
-            efficiency (float): energy conversion efficiency
+            children: (array_like) PV array.
+            efficiency: (float) energy conversion efficiency.
         """
         self.loss = 0.
         self.children = array_like
@@ -448,19 +478,20 @@ class MPPTChargeController(ChargeController):
     def output(self, irr, t_cell):
         """Output of MPPT charge controller
 
-        Assumes that all modules are similar voltages and that the efficiency
+        Args:
+            irr (float): irradiance W/m^2 or irradiation in Wh/m^2.
+            t_cell (float): temperature of cell in C.
+
+        Returns:
+            (float): W or Wh depending on input units.
+
+        Assumes that all modules are similar voltages and that the efficiency.
         curve is linear.
 
         .. math:: output = input \\cdot \\eta
 
         .. math:: losses = input \\cdot (1 -\\eta)
 
-        Args:
-            irr (float): irradiance W/m^2 or irradiation in Wh/m^2
-            t_cell (float): temperature of cell in C
-
-        Returns:
-            (float): W or Wh depending on input units
         """
         w = 0.
         for child in self.children:
@@ -478,22 +509,22 @@ class MPPTChargeController(ChargeController):
 class SimpleChargeController(ChargeController):
     """Simple Charge Controller
 
-    Note: Assumes output clipped to bus voltage vnom
+    Attributes:
+        loss: (float) cumulative energy losses (Wh).
+        children: (object) PV Array.
+        cost: (float) device cost.
 
-    Parameters:
-        loss (float): cumulative energy losses (Wh)
-        children (object): PV Array
-        cost (float): device cost
+    Note: Assumes output clipped to bus voltage vnom
 
     """
     def __init__(self, children, vnom=12.5):
         """
         Args:
-            children (array_like): PV array
-            vnom (float): nominal bus voltage in Volts (default 12.5)
+            children: (array_like) PV array.
+            vnom: (float) nominal bus voltage in (Volts) default 12.5.
         """
         self.loss = 0
-        self.children = array_like
+        self.children = children
         self.vnom = vnom
         self.device_cost = 7.
         self.device_tox = 3.
@@ -502,17 +533,17 @@ class SimpleChargeController(ChargeController):
     def output(self, irr, t_cell):
         """Output of Simple charge controller.
 
+        Args:
+            irr (float): irradiance (W/m^2) or irradiation in (Wh/m^2)
+            t_cell (float): temperature of cell in (C)
+
+        Returns:
+            (float): (W) or (Wh) depending on input units
 
         .. math:: output = V_{nom} \\cdot i
 
         .. math:: losses = (V_{module} - V_{nom}) \\cdot i
 
-        Args:
-            irr (float): irradiance W/m^2 or irradiation in Wh/m^2
-            t_cell (float): temperature of cell in C
-
-        Returns:
-            (float): W or Wh depending on input units
         """
         w = 0.
         for child in self.children:
@@ -528,17 +559,27 @@ class SimpleChargeController(ChargeController):
 
 
 class PVSystem(Device):
-    def __init__(self, children, place, tilt, azimuth):
-        """PV System/Plant
+    """PV System/Plant
 
-        Parameters:
-        place (lat,lon): geolocation
-        tilt (degrees): array tilt
-        azimuth (degrees): array azimuth
-        shape (list): list of energy source objects
-        life (years): expected life of system
+    Attributes:
+        place: (tuple): lat,lon geolocation.
+        tilt: (float) degrees array tilt.
+        azimuth: (float) degrees array azimuth.
+        shape: (list) of energy source objects
+        life: (int) years expected life of system
+    """
+    def __init__(self, children, place, tilt, azimuth):
+        """"
+        Args:
+            children(list): list of power conversion devices.
+            place(tuple): lat,lon geolocation.
+            tilt(float): array tilt in degrees.
+            azimuth(degrees): array azimuth in degrees.
+
         """
         self.place = place
+        self.classification = "source"
+        self.dispactachable = False
         self.tilt = tilt
         self.azimuth = azimuth
         self.children = children
@@ -546,6 +587,7 @@ class PVSystem(Device):
         self.device_co2 = 0.
         self.device_tox = 0.
         self.life = 20.
+        self.gen = True
 
     def nameplate(self):
         """dc power output"""
@@ -570,6 +612,10 @@ class PVSystem(Device):
         return sum([i.tox() for i in self.children])
 
     def __call__(self, t):
+        """C
+        Args:
+            t(dict): weather data record
+        """
         try:
             irr = irradiation.irradiation(t, self.place, t=self.tilt,
                                           array_azimuth=self.azimuth,
@@ -589,47 +635,57 @@ class Domain(Device):
     """Domain Class
 
     Attributes:
-        g (list): total gen delivered to domain
-        l (list): desired load
-        d (list): delta energy; surplus or shortfall
-        net_l (list): enabled load
-        surplus (float): total excess energy (wH)
-        shortfall (float): total energy shortfall (wH)
+        g: (list) total gen delivered to domain.
+        l: (list) desired load.
+        d: (list) delta energy; surplus or shortfall.
+        children: (list) devices in domain.
+        net_l: (list) enabled load (wH).
+        loss_occurence: (int) loss (wH).
+        surplus: (float) total excess energy (wH).
+        shortfall: (float) total energy shortfall (wH).
     """
-    def __init__(self, load=None, storage=None, gen=None):
-        self.load = load
-        self.gen = gen
-        self.storage = storage
-        self.children = [self.load, self.gen, self.storage]
+    def __init__(self, children=None):
+        self.children = children
         self.g = []
         self.l = []
         self.d = []
+        self.state_series = []
+        self.outages = 0
         self.net_g = []  # used generation
         self.net_l = []  # enabled load
-        self.surplus = 0
-        self.shortfall = 0
+        self.surplus = 0.
+        self.shortfall = 0.
+        self.lolh = 0.
+        self.r = 1.
 
     def autonomy(self):
         """Domain autonomy
 
-        Note: assumes hour time intervals
-
         Returns:
             (float) hours
+
+        Note: assumes hour time intervals
+
         """
         # g_ave = sum(self.g)/len(self.g)
         l_median = np.median(self.l)
-        return self.storage.capacity/l_median  # hours
+        return self.capacity()/l_median  # hours
 
     def eta(self):
         """Domain efficiency
+
+        Returns:
+            (float) dimensionless
 
         .. math:: \\eta_{T} = \\frac{\\sum{Loads}}{\\sum{Generation}}
 
 
         """
 
-        return sum(self.net_l)/(sum(self.g)+self.gen.losses())
+        return sum(self.net_l)/(sum(self.g) + self.parameter('losses'))
+
+    def capacity(self):
+        return self.parameter('capacity')
 
     def capacity_factor(self):
         """Capacity Factor Cf
@@ -639,110 +695,190 @@ class Domain(Device):
         Where Gp is peak generation
 
         """
-        if self.gen:
-            return sum(self.net_l)/(self.gen.nameplate()*24*365)
+        if self.STC():
+            return sum(self.net_l)/(self.STC()*24*365)
         else:
             return 0.
 
     def details(self):
         results = {
-            'gen losses (wh)': significant(self.gen.losses()),
             'desired load (wh)': significant(sum(self.l)),
+            'gen losses (wh)': significant(self.parameter('losses')),
             'Autonomy (hours) (Median Load/C)': significant(self.autonomy()),
             'Capacity Factor (%)': significant(self.capacity_factor()*100.),
+            'Domain surplus (kWh)': significant(self.surplus),
             'Domain Parts (USD)': significant(self.cost()),
             'Domain depletion (USD)': significant(self.depletion()),
-            'A (m2)': significant(self.gen.area()),
+            'Domain lolh (hours)': significant(self.lolh),
+            'Domain outages (n)': significant(self.outages),
+            'A (m2)': significant(self.parameter('area')),
             'Tox (CTUh)': significant(self.tox()),
             'CO2 (kgCO2 eq)': significant(self.co2()),
-            'eta T (%)': significant(self.eta()*100)
+            'eta T (%)': significant(self.eta()*100),
+            'STC (w)': self.STC()
         }
-        if self.gen:
-            results['STC (w)'] = significant(self.gen.nameplate())
-        if self.storage:
-            results['capacity (wh)'] = significant(self.storage.capacity)
         return results
 
     def STC(self):
         """STC namplate rating of all generation in domain"""
-        if self.gen:
-            return self.gen.nameplate()
-        else:
-            return 0.
+        nameplate = 0
+        for child in self.children:
+            if child.classification == "source":
+                nameplate += child.nameplate()
+        return nameplate
 
     def weather_series(self, array_like):
         for i in array_like:
             self(i)
 
+    def energy_source(self):
+        """find cheapest energy source
+
+        hasenergy and sell_kwh makes up an offer
+
+        Returns:
+            (object): Device or Domain to cover shortfall from
+        """
+        min_kwh_c = 10
+        choice = None
+        # select lowest energy source bid
+        for child in self.children:
+            if child.classification == 'storage':
+                if child.hasenergy() and child.sell_kwh() < min_kwh_c:
+                    choice = child
+                    min_kwh_c = child.chem.cost_kwh
+        return choice
+
+    def energy_sink(self):
+        """find most expensive energy sink
+
+        needsenergy and buy_kwh makes up a bid
+
+        Returns:
+            (object): Device or Domain for energy transfer
+        """
+        # prioritize energy storage
+        min_kwh_c = 0
+        choice = None
+        # Select highest bid for energy value
+        for child in self.children:
+            if child.classification == 'storage':
+                if child.needsenergy() and child.buy_kwh() > min_kwh_c:
+                    choice = child
+                    min_kwh_c = child.chem.cost_kwh
+        return choice
+
+    def deposit(self, energy_surplus):
+        """Stores surplus energy in a domain.
+
+        Args:
+            energy_surplus: (float) positive in (wH)
+
+        Returns:
+            (float): (wH) surplus that couldn't be transferred.
+        """
+        storage = self.energy_sink()
+        while storage and energy_surplus > 0:
+            a = storage.needsenergy()
+            delta = min(a, energy_surplus)
+            storage.power_io(delta)
+            energy_surplus -= delta
+            storage = self.energy_sink()
+
+        return energy_surplus
+
+    def withdraw(self, energy_shortfall):
+        """Withdraws energy from a domain to cover a shortfall.
+
+        Args:
+            energy_shortfall(float): negative, energy (wH) needed.
+
+        Returns:
+            (float): wH shortfall that couldn't be covered.
+        """
+        storage = self.energy_source()
+        while storage and energy_shortfall < 0:
+            a = storage.state
+            delta = min(a, abs(energy_shortfall))
+            storage.power_io(-delta)
+            energy_shortfall += delta
+            storage = self.energy_source()
+
+        return energy_shortfall
+
     def __call__(self, record):
-        if self.load:
-            l_t = self.load(record['datetime'])
-        else:
-            l_t = 0
+        """Calculate energy for data record.
 
-        if self.gen:
-            g_t = self.gen(record)
-        else:
-            g_t = 0
+        Domains behave like a an energy market, excess energy is are transfered
+        to the device with the highest bid and energy shortfalls are covered
+        from the device with the lowest offer.
 
-        self.g.append(g_t)
-        self.l.append(l_t)
+        Args:
+            record(dict): record of weather data and time.
 
-        d = 0
-        if self.storage:
-            d = g_t - l_t + self.storage
-            self.d.append(d)
-            # todo: i don't like this accounting; its currently being tracked
-            # in storage.
-            # usable_g = g - surplus
-            # net_l = l - shortfall
-            self.net_l.append(min(l_t - d, l_t))
-            # enabled_load = l_t or 0
-            return d
-        else:
-            d = g_t - l_t
-            # todo: assumes full hour, might not be correct
-            self.net_l.append(max(0., l_t))
-            self.net_g.append(max(0., l_t))
-            self.surplus += max(0., d)
-            if d < 0:
-                self.shortfall += l_t
-            return d
+        Returns:
+            (float): net energy surplus or shortfall (wH).
+
+        """
+        # calculate energy demand
+        demand = 0
+        for child in self.children:
+            if child.classification == 'load':
+                demand += child(record['datetime'])
+
+        # get energy sources
+        # todo: demand response
+        # deferable_capacity = 0
+        # dimmable_capacity = 0
+        source = 0
+        for child in self.children:
+            if child.classification == 'source':
+                source += child(record)
+
+        # reconcile energy shortages
+        delta = source - demand
+        self.g.append(source)
+        self.l.append(demand)
+
+        net = 0
+
+        if delta > 0:
+            net = self.deposit(delta)
+            # net != is surplus energy
+            if net > 0:
+                self.surplus += net
+
+        if delta < 0:
+            net = self.withdraw(delta)
+            # net != is energy shortfall
+            if net < 0:
+                self.shortfall -= net
+                self.outages += 1
+                self.lolh += net / - demand
+
+        self.d.append(net)
+        self.net_l.append(min(demand + net, demand))
+
+        energy_stored = 0.
+        nominal_capacity = 0.
+        for child in self.children:
+            if child.classification == 'storage':
+                energy_stored += child.state
+                nominal_capacity += child.nominal_capacity
+
+        state = energy_stored/nominal_capacity
+        self.state_series.append(state)
+
+        return net
 
     def depletion(self):
         return self.parameter('depletion')
 
     def rvalue(self):
-        # todo: fix this, loads have rvalues not storage
-        if self.storage:
-            return self.storage.rvalue()
+        return self.r*self.outages
 
     def __repr__(self):
         return 'Domain $%s' % significant(self.cost())
-
-
-class SystemSeed(object):
-    def __init__(self):
-        pass
-
-    def scale(self):
-        pass
-
-    def interconnect(self):
-        pass
-
-    def frequency_reg(self):
-        pass
-
-
-class AdaptiveConsumer(object):
-    def __init__(self):
-        pass
-
-
-class LoadShedRelay(object):
-    def __init__(self):
-        pass
 
 
 if __name__ == '__main__':

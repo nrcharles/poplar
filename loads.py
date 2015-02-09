@@ -59,6 +59,9 @@ class annual(Device):
 
         """
         self.mult = mult
+        self.classification = "load"
+        self.deferable = False
+        self.dimmable = False
         self.year = year
         self.data = load()
 

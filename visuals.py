@@ -14,24 +14,28 @@ def report(domain, figname='SHS', title=None):
     """
     if not title:
         title = figname
-    storage = domain.storage
-    storage.details()
     fig = plt.figure(figsize=(8.5, 11))
+    td = domain.details()
+    for i in domain.children:
+        if i.classification is 'storage':
+            storage = i
+            td.update(storage.details())
     soc_frequency = fig.add_subplot(321)
     soc_frequency.set_xlabel('SoC')
     soc_frequency.set_ylabel('Frequency')
     soc_frequency.set_title('Normalized SoC Histogram')
-    pp = np.array(storage.state_series)
+    pp = np.array(domain.state_series)
     pp.sort()
     fit = stats.norm.pdf(pp, np.mean(pp), np.std(pp))
-    soc_frequency.hist(storage.state_series, 40, normed=True)
+
+    soc_frequency.hist(domain.state_series, 40, normed=True)
     soc_frequency.plot(pp, fit)
 
     storage_soc = fig.add_subplot(322)
     storage_soc.set_xlabel('day')
     storage_soc.set_ylabel('hour')
     storage_soc.set_title('Storage State of Charge')
-    soc = storage_soc.imshow(heatmap(storage.state_series), aspect='auto')
+    soc = storage_soc.imshow(heatmap(domain.state_series), aspect='auto')
     soc_bar = fig.colorbar(soc)
     soc_bar.set_label('%')
 
@@ -54,15 +58,11 @@ def report(domain, figname='SHS', title=None):
     s_constraint = fig.add_subplot(325)
     s_constraint.set_xlabel('day')
     s_constraint.set_ylabel('hour')
-    s_constraint.set_title('Battery Constraint')
+    s_constraint.set_title('Domain Constraint')
     bc = s_constraint.imshow(heatmap(domain.d), aspect='auto')
     # cmap = plt.cm.Greys_r)
     b4 = fig.colorbar(bc)
     b4.set_label('W')
-    td = domain.details()
-
-    if domain.storage:
-        td.update(domain.storage.details())
 
     figure_str = ("\\begin{figure}\n"
                   "\\centering\n"
@@ -97,7 +97,7 @@ def report(domain, figname='SHS', title=None):
         lpos[i] = pos[i] + [0, .15]
     nx.draw_networkx_nodes(G, pos=pos, ax=domain_graph, node_size=200)
     nx.draw_networkx_edges(G, pos=pos, ax=domain_graph)
-    ts = nx.draw_networkx_labels(G, pos=lpos, font_size=7)# rotation=45)
+    ts = nx.draw_networkx_labels(G, pos=lpos, font_size=7)  # rotation=45)
 
     for key in ts.iterkeys():
         ts[key].set_rotation(45)

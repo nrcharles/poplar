@@ -41,12 +41,12 @@ class Case(object):
         pv = max(pv, 0)
         size = max(size, 0)
         # PLACE = (24.811468, 89.334329)
-        SHS = Domain(load=annual(),
-                     gen=PVSystem([self.cc([SimplePV(pv)])],
-                                  PLACE, 24.81, 180.),
-                     storage=IdealStorage(size))
+        SHS = Domain([annual(),
+                      PVSystem([self.cc([SimplePV(pv)])],
+                               PLACE, 24.81, 180.),
+                      IdealStorage(size)])
         SHS.weather_series(eere.EPWdata('418830'))
-        print SHS.storage.details()
+        print SHS.details()
         return SHS
 
     def __call__(self, parameters):
@@ -58,7 +58,7 @@ class Case(object):
 
 
 class LolhMerit(object):
-    """Example merit class
+    """Example merit class based on Loss of Load Hours
 
     Merit is based on Minimum Price with Loss of Load Hours (LOLH) having a
     cost per hour.
@@ -74,16 +74,32 @@ class LolhMerit(object):
         return total
 
 
+class TMerit(object):
+    """Example merit class based on Impact
+
+    Merit is based on Minimum CO2 emissions and Loss of Load Hours (LOLH)
+
+    """
+    def __init__(self):
+        pass
+
+    def __call__(self, domain):
+        total = domain.co2() * (1+domain.lolh)
+        print total
+        return total
+
+
 if __name__ == '__main__':
     from scipy import optimize
     from visuals import report
     merit = LolhMerit(1.0)
+    merit = TMerit(1.0)
     case1 = Case(MPPTChargeController, merit)
     # initial guess
     x0 = np.array([180., 110.])
     # Basin-hopping is a stochastic algorithm which attempts to find the global
     # minimum of a smooth scalar function of one or more variables
-    r = optimize.basinhopping(case1, x0, niter=2)
+    r = optimize.basinhopping(case1, x0, niter=3)
     print r
     s, p = r['x']
     report(case1.model((s, p)), 'mppt_p_basin_1_lolh')

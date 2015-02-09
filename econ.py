@@ -28,7 +28,7 @@ def grid_value(domain):
     """grid value in Virtual Power Plant in a mature market"""
 
     cap_w = domain.STC()*domain.capacity_factor()
-    cap_s = domain.storage.capacity  # w assuming 1C discharge
+    cap_s = domain.capacity() # w assuming 1C discharge
     e_v = domain.storage.surplus/1000. * .12
 
     cap_v = CAP_PRICE_MW_2018/1E6*cap_w*365.
