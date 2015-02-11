@@ -12,6 +12,7 @@ def report(domain, figname='SHS', title=None):
         figname (str):
 
     """
+    figname = latexify(figname)
     if not title:
         title = figname
     fig = plt.figure(figsize=(8.5, 11))
@@ -70,8 +71,6 @@ def report(domain, figname='SHS', title=None):
                   "\\caption{%s} \\label{fig:%s}\n"
                   "\\end{figure}\n") % (figname, latexify(title), figname)
 
-    print figure_str
-
     table_str = ("\\begin{table}\n"
                  "\\centering\n"
                  "\\captionof{table}{%s} \\label{tab:%s}\n"
@@ -86,8 +85,6 @@ def report(domain, figname='SHS', title=None):
     table_str += ("\\bottomrule\n"
                   "\\end{tabular}\n"
                   "\\end{table}\n")
-
-    print table_str
 
     domain_graph = fig.add_subplot(326)
     G = domain.graph()
@@ -110,6 +107,7 @@ def report(domain, figname='SHS', title=None):
     domain_graph.axis('off')
     fig.tight_layout()
     fig.savefig('%s.pdf' % figname)
+    return table_str, figure_str
 
 
 if __name__ == '__main__':
