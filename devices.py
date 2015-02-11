@@ -149,7 +149,8 @@ class IdealStorage(Device):
         self.full_hours = 0.
         self.shortfall = 0.
         self.state_series = []
-        self.in_use = 0.
+        self.hours = []
+        self.timeseries = []  # todo: not currently used, needed for interp?
         self.loss_occurence = 0
         self.c_in = []
         self.c_out = []
@@ -221,7 +222,7 @@ class IdealStorage(Device):
 
             """
         energy = power*hours
-        self.in_use += hours
+        self.hours.append(hours)
 
         if energy > 0:
             # Track C rate
@@ -357,7 +358,8 @@ class SimplePV(Device):
         This is often calulated either by :cite:`DeSoto2006`, :cite:`King2007`
         or :cite:`Dobos2012`.
 
-        For performance temperature compensation is simplified to:
+        For computer processing performance temperature compensation is
+        simplified to:
 
         .. math:: V_{mp} = V_{mpo} + \\beta_{Vmp}(T_{c} - T_{o})
 
@@ -394,14 +396,14 @@ class SimplePV(Device):
         return vmp, self.imp * irr / 1000.
 
     def tox(self):
-        return self.nameplate()*.3
+        return self.nameplate() * .3  # todo: placeholder value
 
     __call__ = output
 
     def __repr__(self):
         v, i = self(1000., 25.)
         W = v*i
-        return '%s W PV' % W
+        return '%s W PV' % significant(W)
 
 
 class ChargeController(Device):
@@ -416,8 +418,8 @@ class ChargeController(Device):
     def __init__(self, array_like):
         self.children = array_like
         self.device_cost = 10.
-        self.device_tox = 3.
-        self.device_co2 = 5.
+        self.device_tox = 3.  # todo: placeholder value
+        self.device_co2 = 5.  # todo: placeholder value
 
     def losses(self):
         return self.loss
@@ -485,7 +487,7 @@ class MPPTChargeController(ChargeController):
         Returns:
             (float): W or Wh depending on input units.
 
-        Assumes that all modules are similar voltages and that the efficiency.
+        Assumes that all modules are similar voltages and that the efficiency
         curve is linear.
 
         .. math:: output = input \\cdot \\eta
@@ -650,6 +652,8 @@ class Domain(Device):
         self.l = []
         self.d = []
         self.state_series = []
+        self.hours = []
+        self.time_series = []
         self.outages = 0
         self.net_g = []  # used generation
         self.net_l = []  # enabled load
@@ -806,7 +810,7 @@ class Domain(Device):
 
         return energy_shortfall
 
-    def __call__(self, record):
+    def __call__(self, record, hours=1.0):
         """Calculate energy for data record.
 
         Domains behave like a an energy market, excess energy is are transfered
@@ -820,6 +824,9 @@ class Domain(Device):
             (float): net energy surplus or shortfall (wH).
 
         """
+        self.hours.append(hours)
+        self.time_series.append(record['datetime'])
+
         # calculate energy demand
         demand = 0
         for child in self.children:
