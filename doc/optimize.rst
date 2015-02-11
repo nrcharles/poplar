@@ -16,12 +16,12 @@ Rahima's younger brother Rana works as a laborer during the rice harvest and as 
 
 Rahima's husband was tragically electrocuted working as an electrician.
 She leaves her children with family and spends most of the month working in Dhaka.
-The journey starts early in the morning. She walks 20 minutes to the main road and shares a small 3 wheel taxi, locally know as a CNG, to the Bogra bus station.  Occationally it is an Electric CNG. Electric CNG's have questionable legal status, but many were imported from China a few years ago.
+The journey starts early in the morning. She walks 20 minutes to the main road and shares a small 3 wheel taxi, locally know as a CNG, to the Bogra bus station.  Occasionally it is an Electric Autorickshaw. Electric Autorickshaws's have questionable legal status, but many were imported from China a few years ago.
 Dhaka is about 120 miles from Bogra, without any traffic it can be a 4 hour journey, but the only time she has ever made it that fast was shortly after the Bangladesh Riffles Revolt in 2009. The bus journey typically takes at least 6 hours.  Rahima doesn't like the bus ride; she often gets motion sickness. Last year the Eid traffic was so bad that it took 14 hours to get home. She developed a urinary tract infection because there are no toilet facilities on the bus and it stops infrequently. It is also a very scary journey. Bangladesh highways are some of the most dangerous in the world; she always sees at least one bus that has suffered a head on collision with oncoming traffic.
 The journey can also be delayed by Hartal's, national strikes that shut down transportation systems.
 
 Power outages are very common in Bangladesh, but it has been improving. # Figure \ref{fig:bd_cap}.
-A few years ago the load shedding schedule was an hour on an hour off. Generators in the large buildings would kick on and blow fumes on the sidewalks she walked to from the bus station to her residense in Dhaka. The current government has been in power for six years and has installed a massive amount of new generation. Most of the new plants run on Heavy Fuel Oil (HFO) and natural gas, but several of the largest planned plants will be fueled by coal. \cite{BPDB2013}.
+A few years ago the load shedding schedule was an hour on an hour off. Generators in the large buildings would kick on and blow fumes on the sidewalks she walked to from the bus station to her residence in Dhaka. The current government has been in power for six years and has installed a massive amount of new generation. Most of the new plants run on Heavy Fuel Oil (HFO) and natural gas, but several of the largest planned plants will be fueled by coal. \cite{BPDB2013}.
 
 Rahima lives in shared housing called a mess hall.
 Many women live in the same room.
@@ -119,4 +119,4 @@ Output
 ------
 
 
-.. image:: ../mppt_p_basin_1_lolh.pdf
+.. image:: '../mppt_min_lolh_1_0.pdf'
