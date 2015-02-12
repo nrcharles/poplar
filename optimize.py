@@ -1,4 +1,4 @@
-"""Optimization Example:
+"""Optimization Example.
 
 Adjust battery capacity and pv size to minimize price of a Solar Home System
 for a location.
@@ -20,12 +20,12 @@ from visuals import report
 # net metering
 # various load profiles
 # enhanced DSM
-# storage size
 # tilt & azimuth
 
 
 class Case(object):
-    """Test Case
+
+    """Test Case.
 
     Attributes:
         merit (function): to calculate merit
@@ -33,8 +33,10 @@ class Case(object):
         load (object): Load
 
     """
+
     def __init__(self, cc, merit, load):
-        """
+        """Initialize.
+
         Args:
             merit (function): to calculate merit
             cc (object): Charge Controller
@@ -50,7 +52,7 @@ class Case(object):
         self.weather_station = '418830'
 
     def model(self, parameters):
-        """Model a year of data for a location
+        """Model a year of data for a location.
 
         Args:
             parameters: (tuple) capacity (wH), PV Size (STC).
@@ -76,11 +78,13 @@ class Case(object):
 
 
 class EnergyMerit(object):
-    """Example merit class based on Energy Shortfall
+
+    """Example merit class based on Energy Shortfall.
 
     Merit is based on Minimum Price with Energy having a kWh cost.
 
     """
+
     def __init__(self, lolhcost):
         self.lolhcost = lolhcost
 
@@ -95,12 +99,14 @@ class EnergyMerit(object):
 
 
 class LolhMerit(object):
-    """Example merit class based on Loss of Load Hours
+
+    """Example merit class based on Loss of Load Hours.
 
     Merit is based on Minimum Price with Loss of Load Hours (LOLH) having a
     cost per hour.
 
     """
+
     def __init__(self, lolhcost):
         self.lolhcost = lolhcost
 
@@ -115,11 +121,13 @@ class LolhMerit(object):
 
 
 class TMerit(object):
-    """Example merit class based on Impact
+
+    """Example merit class based on Impact.
 
     Merit is based on Minimum CO2 emissions and Loss of Load Hours (LOLH)
 
     """
+
     def __init__(self):
         pass
 
@@ -133,11 +141,11 @@ class TMerit(object):
 
 
 def mppt(load, merit):
-    """Optimize MPPT system
+    """Optimize MPPT system for given a load and merit.
 
-    Given a load and a merit, what is the optimum sizing of an single
-    reliablity domain with an MPPT charge controller with a linear 95%
-    effciency curve using a local minimize algorithm.
+    What is the optimum sizing of an single reliablity domain with an MPPT
+    charge controller with a linear 95%  efficiency curve using a local
+    minimize algorithm.
 
     Args:
         load : (object)
@@ -159,7 +167,7 @@ def mppt(load, merit):
 
 
 def simple(load, merit):
-    """Optimize Simple system
+    """Optimize Simple system for a given load and merit.
 
     Given a load and a merit, what is the optimum sizing of an single
     reliablity domain with an simple charge controller which is effectively
@@ -173,7 +181,6 @@ def simple(load, merit):
         (str, str): Latex markup for figure and table
 
     """
-
     case1 = Case(SimpleChargeController, merit, load)
     # initial guess
     x0 = np.array([180., 110.])
@@ -189,3 +196,5 @@ if __name__ == '__main__':
     merit = LolhMerit(0.07)
     mppt(annual, merit)
     # simple(annual, merit)
+    # merit = LolhMerit(0.07)
+    # mppt(annual, merit)
