@@ -12,6 +12,7 @@ REGULATION_PRICE = 60.  # $/MW/hour
 
 # step function
 p = lambda x, m, b: math.ceil(x/m)*(VOLUME_CONSTANT*math.log(math.ceil(x/m))+b)
+# Where x is kwh, m is increment size and b is price floor constant
 
 
 def gini(list_of_values):
@@ -54,14 +55,14 @@ def scaling():
     ax = fig.add_subplot(111)
     # ax.set_title('Storage Frequency Histogram')
     ws = range(1, 10000, 100)
-    m = [p(x, 250, 1000) for x in range(1, 10000, 100)]
-    ac = [p(x, 5000, 15000) for x in range(1, 10000, 100)]
-    dc = [p(x, 1500, 7000) for x in range(1, 10000, 100)]
+    m = [p(x, 250*1.3, 1000) for x in range(1, 10000, 100)]
+    ac = [p(x, 5000*1.3, 15000) for x in range(1, 10000, 100)]
+    dc = [p(x, 1500*1.3, 7000) for x in range(1, 10000, 100)]
     ax.plot(ws, m, label='Micro Inverter')
     ax.plot(ws, ac,  label='AC Coupled')
     ax.plot(ws, dc, label='DC Coupled')
     ax.legend(loc='upper left')
-    ax.set_ylabel('size (W)')
+    ax.set_ylabel('Load (kWh)')
     ax.set_xlabel('Price (USD)')
     plt.draw()
     plt.show()
