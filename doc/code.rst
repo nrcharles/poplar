@@ -33,8 +33,9 @@ power_io
 
 power_io is where the bulk of the IdealStorage logic happens.
 
-.. literalinclude:: ../devices.py
+.. literalinclude:: ../storage.py
    :pyobject: IdealStorage.power_io
+
 Misc
 ----
 Miscellaneous functions that don't obviously belong elsewhere.

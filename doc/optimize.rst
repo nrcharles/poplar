@@ -50,19 +50,54 @@ Notes
 -----
 
 For this testcase we will use the annual BD profile nominalized to a size
-relevant to the SHS sizing.
-
-Iterating over the space of PV size 5-200W and Battery Effective Capacity
-20-250 wH shows charts which help determine what is the nature of the
+relevant to the SHS sizing.  The Desired load is total annual load.
+Iterating over the space of PV STC nameplate sizes of 5-200 W and Battery Effective Capacity
+20-250 wH and plotting various metrics which help determine what is the nature of the
 optimization problem.
+
+Scaling
+^^^^^^^
+There is a scaling/sizing problem that is somewhat hard to quantify that
+arrises from the fact there is not a device that correlates to every possible size.
+
+:ref:`figscale` shows how this non-linearality shows up in system costs. In
+systems that are interconnected, this issues is smoothed over by purchasing or selling
+excess energy into the grid.
+
+System per device price seems to be described by the equation.
+
+.. math::
+   \text{cost} = \lceil \frac{x}{m} \rceil (V \cdot \log \lceil \frac{x}{m} \rceil + b)
+
+Where x is kWh, m is increment size V is volume discount constant and b is price floor constant.
+
+.. _figscale:
+
+.. figure:: ../scaling.pdf
+
+   System price to enable a load
+
+For this simulation we will assume that there is a device that correlates with every size.
+
 
 Technology
 ^^^^^^^^^^
 maximize: net load
 
+:ref:`figeta` calculated by domain.eta() shows the total efficiency of a given
+sizing.
+:ref:`fignl` is how much energy was used for a given sizing.
+:ref:`figeg` is the sum domain.g attribute and shows how much energy was
+available.
+
 
 Environment
 ^^^^^^^^^^^
+
+:ref:`figc` shows kg CO2 equivalent.  Both PV modules and Batteries can be
+treated as commodities, power conversion electronics on the other hand does not
+seem to have a well defined scaling function, so quantifying that is harder.
+The following equation may be a way to talk about how it scales.
 
 .. math :: I_{T} = I_{D} + C_{0} \cdot C_{B} + C_{1} \cdot S_{PV}
 
@@ -70,40 +105,70 @@ Environment
 Where C0 and C1 are constants with units Impact/Capacity and Impact/Watt Peak
 respectively.
 
+
 Economic
 ^^^^^^^^
-minimizes P also minimizes I
+
+ :ref:`figP` shows how the system cost per generation is affected by
+increasing battery size.  Since batteries are not an energy source increasing
+battery size increases system price and thus energy price.
+
+.. There seems to be a correlation with Impact.  It may be that minimizing P also minimizes I
 
 Risk
 ^^^^
 
+:ref:`figr` is loss of load hours (LOLH).  The observation here is that there is
+a space where there is 0 LOLH for this annual load.
 
-Thus is minimizing impact is to reduce the system size to the
-minimum that still gives reliable service?
 
-Or is it to maximize efficiency?
 
-.. _figlem:
+.. _figeta:
 
 .. figure:: ../parm_eta.pdf
 
    System efficiency
 
+.. _fignl:
+
 .. figure:: ../parm_nl.pdf
 
    Loads Enabled
+
+.. _figeg:
 
 .. figure:: ../parm_eg.pdf
 
    Excess Generation
 
+.. _figc:
+
 .. figure:: ../parm_c.pdf
 
-   CO2 footprint for device manufacture
+   kg CO2 eq footprint for manufacture of device
+
+.. _figP:
 
 .. figure:: ../parm_P.pdf
 
    System cost (USD)/W
+
+.. _figr:
+
+.. figure:: ../parm_r.pdf
+
+   System Outages
+
+Ranking
+^^^^^^^
+
+Several sets of constraints arise for sizing based on these metrics.
+It appears to be some balance of reliability and environmental impact or cost.
+
+In this code we run 3 optimizations test cases.  We will look at a MPPT charge
+controller (optimize.mppt) with a LOLH cost
+of $1.00 and $0.07 and a simple charge controller (optimized.simple) with a LOLH
+cost of $1.00.
 
 
 Code
@@ -115,8 +180,91 @@ Code
 
 .. literalinclude:: ../optimize.py
 
+
+
 Output
 ------
 
+.. .. program-output:: python --help
 
-.. image:: '../mppt_min_lolh_1_0.pdf'
+.. _figcase1:
+
+.. figure:: ../mppt_min_lolh_1_0.pdf
+
+   MPPT System sized at $1.0/LOLH
+
+================================ =====
+Parameter (units)                Value
+================================ =====
+Desired load (wh)                71400
+Domain efficiency (%)            41.7
+A (m2)                           0.5
+CO2 (kgCO2 eq)                   235.0
+Domain surplus (kWh)             91400
+Toxicity (CTUh)                  90.6
+STC (w)                          100.0
+gen losses (wh)                  8570
+Autonomy (hours) (Median Load/C) 21.7
+Domain lolh (hours)              0.887
+Domain depletion (USD)           9.7
+Domain outages (n)               3.0
+Capacity Factor (%)              8.15
+Domain Parts (USD)               122.0
+================================ =====
+
+.. _figcase2:
+
+.. figure:: ../simple_min_lolh_1_0.pdf
+
+   Simple System sized at $1.0/LOLH
+
+
+The results of :ref:`figcase1` compared to :ref:`figcase2` show how MPPT can
+theoretically reduce the needed PV Module size.
+
+================================ ======
+Parameter (units)                Value
+================================ ======
+desired load (wh)                71400
+eta T (%)                        35.2
+A (m2)                           0.592
+CO2 (kgCO2 eq)                   273.0
+Domain surplus (kWh)             101000
+Toxicity (CTUh)                  101.0
+STC (w)                          118.5
+gen losses (wh)                  30800
+Autonomy (hours) (Median Load/C) 23.4
+Domain lolh (hours)              0.0
+Domain depletion (USD)           10.3
+Domain outages (n)               0
+Capacity Factor (%)              6.88
+Domain Parts (USD)               137.0
+================================ ======
+
+.. _figcase3:
+
+.. figure:: ../mppt_min_lolh_0_07.pdf
+
+   MPPT System sized at $0.07/LOLH
+
+The results of :ref:`figcase3` show a reduction in reliability theoretically
+ increases efficiency and decreases costs.
+
+================================ =====
+Parameter (units)                Value
+================================ =====
+desired load (wh)                71400
+eta T (%)                        60.1
+A (m2)                           0.338
+CO2 (kgCO2 eq)                   166.0
+Domain surplus (kWh)             40400
+Toxicity (CTUh)                  68.1
+STC (w)                          67.6
+gen losses (wh)                  5790
+Autonomy (hours) (Median Load/C) 16.9
+Domain lolh (hours)              197.0
+Domain depletion (USD)           8.32
+Domain outages (n)               256.0
+Capacity Factor (%)              11.8
+Domain Parts (USD)               89.3
+================================ =====
