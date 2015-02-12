@@ -5,7 +5,9 @@ import networkx as nx
 
 
 class Device(object):
-    """Device LCA Object
+
+    """
+    Device LCA Object.
 
     The premise of this tool is that Devices have LCA values.  This class is
     inherited to create the modeling framework.
@@ -17,15 +19,17 @@ class Device(object):
         device_cost: (float) device cost.
 
     """
-    def __init__(self, array_like):
-        self.children = array_like
+
+    def __init__(self):
+        """Method should be overridden."""
+        self.children = []
         self.device_cost = 0.
         self.device_tox = 0.
         self.device_co2 = 0.
         self.device_area = 0.
 
     def parameter(self, name):
-        """Default parameter method
+        """Default parameter method.
 
         Accounts for arbitrary attributes on Device objects.
 
@@ -47,7 +51,7 @@ class Device(object):
         return v
 
     def co2(self):
-        """CO2 eq footprint
+        """CO2 eq footprint.
 
         Returns:
             (float): kg CO2 eq.
@@ -55,7 +59,7 @@ class Device(object):
         return self.parameter('co2')
 
     def tox(self):
-        """Toxicity footprint
+        """Toxicity footprint.
 
         Returns:
             (float): CTUh
@@ -63,7 +67,7 @@ class Device(object):
         return self.parameter('tox')
 
     def cost(self):
-        """Device cost
+        """Device cost.
 
         Returns:
             (float): USD
@@ -71,7 +75,7 @@ class Device(object):
         return self.parameter('cost')
 
     def area(self):
-        """Device footprint
+        """Device footprint.
 
         Returns:
             (float): m^2
@@ -79,7 +83,7 @@ class Device(object):
         return self.parameter('area')
 
     def graph(self):
-        """Device Graph of all decendant devices
+        """Device Graph of all decendant devices.
 
         Returns:
             (Graph)
@@ -98,7 +102,8 @@ class Device(object):
 
 
 class SimplePV(Device):
-    """Simple PV module (Generic)
+
+    """Simple PV module (Generic).
 
     Attributes:
         imp: (float) current.
@@ -109,7 +114,13 @@ class SimplePV(Device):
     Note: Constants choosen based on typical manufacturer data
 
     """
+
     def __init__(self, W):
+        """Create a generic PV module typical of a module in that power class.
+
+        Args:
+            W (float): Watts
+        """
         imax = 8.
         v_bus = [24, 20, 12]
         self.cost_watt = .8
@@ -123,10 +134,12 @@ class SimplePV(Device):
         self.tc_imp = self.imp * 0.0004
 
     def area(self):
-        return self.nameplate()/1000./.2
+        """Total area PV Module in M^2."""
+        return self.nameplate()/1000./.15
 
     def co2(self):
-        """CO2 for system
+        """CO2 for system.
+
         Note:
         Assuming 1800 kg/kWp
         ~1600-2000/kWp :cite:`laleman2013comparing`
@@ -134,21 +147,20 @@ class SimplePV(Device):
         Returns:
             (float): kg CO2 eq
         """
-
         return 1.8 * self.nameplate()
 
     def cost(self):
-        """total module cost"""
+        """total module cost."""
         return self.nameplate() * self.cost_watt
 
     def nameplate(self):
-        """Nameplate rating at STC conditions"""
+        """Nameplate rating at STC conditions."""
         v, i = self.output(1000., 25.)
         W = v*i
         return W
 
     def output(self, irr, t_cell):
-        """Temperature compensated module output
+        """Temperature compensated module output.
 
         Note: this is a heuristic method.
 
@@ -194,6 +206,10 @@ class SimplePV(Device):
         return vmp, self.imp * irr / 1000.
 
     def tox(self):
+        """Module Toxicity.
+
+        This is not a well developed area.
+        """
         return self.nameplate() * .3  # todo: placeholder value
 
     __call__ = output
@@ -205,7 +221,9 @@ class SimplePV(Device):
 
 
 class PVSystem(Device):
-    """PV System/Plant
+
+    """
+    PV System/Plant.
 
     Attributes:
         place: (tuple): lat,lon geolocation.
@@ -213,12 +231,15 @@ class PVSystem(Device):
         azimuth: (float) degrees array azimuth.
         shape: (list) of energy source objects
         life: (int) years expected life of system
+
     """
+
     def __init__(self, children, place, tilt, azimuth):
-        """"
+        """Should have at least one child.
+
         Args:
             children(list): list of power conversion devices.
-            place(tuple): lat,lon geolocation.
+            place(tuple): lat, lon geolocation.
             tilt(float): array tilt in degrees.
             azimuth(degrees): array azimuth in degrees.
 
@@ -236,29 +257,31 @@ class PVSystem(Device):
         self.gen = True
 
     def nameplate(self):
-        """dc power output"""
+        """Sum of STC DC nameplate power."""
         total_dc = 0
         for i in self.children:
             total_dc += i.nameplate()
         return total_dc
 
     def output(self, irr, t_cell):
+        """Sum of energy output."""
         return sum([i.output(irr, t_cell) for i in self.children])
 
     def depletion(self):
-        """1 year depletion"""
+        """1 year depletion."""
         return self.cost()/self.life
 
     def losses(self):
-        """total losses"""
+        """Sum total losses."""
         return sum([i.losses() for i in self.children])
 
     def tox(self):
-        """total Toxicity"""
+        """Sum total Toxicity."""
         return sum([i.tox() for i in self.children])
 
-    def __call__(self, t):
-        """C
+    def energy(self, t):
+        """Calculate total energy for a time period.
+
         Args:
             t(dict): weather data record
         """
@@ -269,8 +292,10 @@ class PVSystem(Device):
             t_cell = module_temp(irr, t)
             return self.output(irr, t_cell)
         except Exception as e:
-            print e
+            print(e)
             return 0
+
+    __call__ = energy
 
     def __repr__(self):
         return 'Plant %s, %s' % (significant(self.tilt),
@@ -278,7 +303,8 @@ class PVSystem(Device):
 
 
 class Domain(Device):
-    """Domain Class
+
+    """Base Domain Class.
 
     Attributes:
         g: (list) total gen delivered to domain.
@@ -290,7 +316,14 @@ class Domain(Device):
         surplus: (float) total excess energy (wH).
         shortfall: (float) total energy shortfall (wH).
     """
+
     def __init__(self, children=None):
+        """Should have at least one child but should probably have two.
+
+        Args:
+            children (list): loads, storage, and generation
+        """
+        # super(Device, self).__init__()
         self.children = children
         self.g = []
         self.l = []
@@ -307,7 +340,7 @@ class Domain(Device):
         self.r = 1.
 
     def autonomy(self):
-        """Domain autonomy
+        """Calculate domain autonomy.
 
         Returns:
             (float) hours
@@ -320,7 +353,7 @@ class Domain(Device):
         return self.capacity()/l_median  # hours
 
     def eta(self):
-        """Domain efficiency
+        """Calculate domain efficiency.
 
         Returns:
             (float) dimensionless
@@ -329,10 +362,10 @@ class Domain(Device):
 
 
         """
-
         return sum(self.net_l)/(sum(self.g) + self.parameter('losses'))
 
     def capacity(self):
+        """Total capacity of energy storage."""
         return self.parameter('capacity')
 
     def capacity_factor(self):
@@ -349,9 +382,11 @@ class Domain(Device):
             return 0.
 
     def details(self):
+        """Create dict of metrics."""
         results = {
-            'desired load (wh)': significant(sum(self.l)),
-            'gen losses (wh)': significant(self.parameter('losses')),
+            'Desired load (wh)': significant(sum(self.l)),
+            'Domain Generation losses (wh)':
+            significant(self.parameter('losses')),
             'Autonomy (hours) (Median Load/C)': significant(self.autonomy()),
             'Capacity Factor (%)': significant(self.capacity_factor()*100.),
             'Domain surplus (kWh)': significant(self.surplus),
@@ -360,15 +395,15 @@ class Domain(Device):
             'Domain lolh (hours)': significant(self.lolh),
             'Domain outages (n)': significant(self.outages),
             'A (m2)': significant(self.parameter('area')),
-            'Tox (CTUh)': significant(self.tox()),
+            'Toxicity (CTUh)': significant(self.tox()),
             'CO2 (kgCO2 eq)': significant(self.co2()),
-            'eta T (%)': significant(self.eta()*100),
+            'Domain Efficiency (%)': significant(self.eta()*100),
             'STC (w)': self.STC()
         }
         return results
 
     def STC(self):
-        """STC namplate rating of all generation in domain"""
+        """STC nameplate rating of all generation in domain."""
         nameplate = 0
         for child in self.children:
             if child.classification == "source":
@@ -380,12 +415,12 @@ class Domain(Device):
             self(i)
 
     def energy_source(self):
-        """find cheapest energy source
+        """Find cheapest energy source.
 
-        hasenergy and sell_kwh makes up an offer
+        hasenergy and sell_kwh makes up an offer.
 
         Returns:
-            (object): Device or Domain to cover shortfall from
+            (object): Device or Domain to cover energy shortfall.
         """
         min_kwh_c = 10
         choice = None
@@ -398,7 +433,7 @@ class Domain(Device):
         return choice
 
     def energy_sink(self):
-        """find most expensive energy sink
+        """Find most expensive energy sink.
 
         needsenergy and buy_kwh makes up a bid
 
@@ -416,8 +451,16 @@ class Domain(Device):
                     min_kwh_c = child.chem.cost_kwh
         return choice
 
-    def deposit(self, energy_surplus):
-        """Stores surplus energy in a domain.
+    def bank(self, energy):
+        """Bank energy."""
+        if energy > 0:
+            net = self.deposit(energy)
+        if energy < 0:
+            net = self.withdraw(energy)
+        return net
+
+    def deposit(self, energy):
+        """Store surplus energy in a domain.
 
         Args:
             energy_surplus: (float) positive in (wH)
@@ -425,18 +468,19 @@ class Domain(Device):
         Returns:
             (float): (wH) surplus that couldn't be transferred.
         """
+        # energy is surplus (positive)
         storage = self.energy_sink()
-        while storage and energy_surplus > 0:
+        while storage and energy > 0:
             a = storage.needsenergy()
-            delta = min(a, energy_surplus)
+            delta = min(a, energy)
             storage.power_io(delta)
-            energy_surplus -= delta
+            energy -= delta
             storage = self.energy_sink()
 
-        return energy_surplus
+        return energy
 
-    def withdraw(self, energy_shortfall):
-        """Withdraws energy from a domain to cover a shortfall.
+    def withdraw(self, energy):
+        """Withdraw energy from a domain to cover a shortfall.
 
         Args:
             energy_shortfall(float): negative, energy (wH) needed.
@@ -444,17 +488,18 @@ class Domain(Device):
         Returns:
             (float): wH shortfall that couldn't be covered.
         """
+        # energy is shortfall (negative)
         storage = self.energy_source()
-        while storage and energy_shortfall < 0:
+        while storage and energy < 0:
             a = storage.state
-            delta = min(a, abs(energy_shortfall))
+            delta = min(a, abs(energy))
             storage.power_io(-delta)
-            energy_shortfall += delta
+            energy += delta
             storage = self.energy_source()
 
-        return energy_shortfall
+        return energy
 
-    def __call__(self, record, hours=1.0):
+    def power_io(self, record, hours=1.0):
         """Calculate energy for data record.
 
         Domains behave like a an energy market, excess energy is are transfered
@@ -477,7 +522,6 @@ class Domain(Device):
             if child.classification == 'load':
                 demand += child(record['datetime'])
 
-        # get energy sources
         # todo: demand response
         # deferable_capacity = 0
         # dimmable_capacity = 0
@@ -491,21 +535,15 @@ class Domain(Device):
         self.g.append(source)
         self.l.append(demand)
 
-        net = 0
+        net = self.bank(delta)
 
-        if delta > 0:
-            net = self.deposit(delta)
-            # net != is surplus energy
-            if net > 0:
-                self.surplus += net
+        if net > 0:  # net > 0 is surplus energy
+            self.surplus += net
 
-        if delta < 0:
-            net = self.withdraw(delta)
-            # net != is energy shortfall
-            if net < 0:
-                self.shortfall -= net
-                self.outages += 1
-                self.lolh += net / - demand
+        if net < 0:  # net < 0 is energy shortfall
+            self.shortfall -= net
+            self.outages += 1
+            self.lolh += net / - demand
 
         self.d.append(net)
         self.net_l.append(min(demand + net, demand))
@@ -527,6 +565,8 @@ class Domain(Device):
 
     def rvalue(self):
         return self.r*self.outages
+
+    __call__ = power_io
 
     def __repr__(self):
         return 'Domain $%s' % significant(self.cost())
