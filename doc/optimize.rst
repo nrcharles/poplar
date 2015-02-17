@@ -50,9 +50,9 @@ Notes
 -----
 
 For this testcase we will use the annual BD profile nominalized to a size
-relevant to the SHS sizing.  The Desired load is total annual load.
+relevant to the SHS sizing.  Desired load is total annual load.
 Iterating over the space of PV STC nameplate sizes of 5-200 W and Battery Effective Capacity
-20-250 wH and plotting various metrics which help determine what is the nature of the
+20-250 wH and plotting various metrics help determine what is the nature of the
 optimization problem.
 
 Scaling
@@ -82,44 +82,45 @@ For this simulation we will assume that there is a device that correlates with e
 
 Technology
 ^^^^^^^^^^
-maximize: net load
-
 :ref:`figeta` calculated by domain.eta() shows the total efficiency of a given
 sizing.
-:ref:`fignl` is how much energy was used for a given sizing.
+:ref:`fignl` is the sum of domain.net_l attribute showing how much energy was used for a given sizing.
 :ref:`figeg` is the sum domain.g attribute and shows how much energy was
 available.
+Without an interconnection the excess generation is wasted.  Properly sizing
+the system should maximize net load while minimizing excess generation.
 
 
 Environment
 ^^^^^^^^^^^
 
-:ref:`figc` shows kg CO2 equivalent.  Both PV modules and Batteries can be
+:ref:`figc` shows the green house gas footprint for manufacture of device.
+Both PV modules and Batteries can be
 treated as commodities, power conversion electronics on the other hand does not
-seem to have a well defined scaling function, so quantifying that is harder.
+seem to have a well defined scaling function, thus harder to quantify.
 The following equation may be a way to talk about how it scales.
 
 .. math :: I_{T} = I_{D} + C_{0} \cdot C_{B} + C_{1} \cdot S_{PV}
 
 
 Where C0 and C1 are constants with units Impact/Capacity and Impact/Watt Peak
-respectively.
-
+respectively.  There are a number of dimensions that Impact could have including
+Carbon Dioxide or human toxicity.
 
 Economic
 ^^^^^^^^
 
- :ref:`figP` shows how the system cost per generation is affected by
+:ref:`figP` shows how the system cost per generation is affected by
 increasing battery size.  Since batteries are not an energy source increasing
-battery size increases system price and thus energy price.
-
-.. There seems to be a correlation with Impact.  It may be that minimizing P also minimizes I
+battery size increases system price by extension energy price.
+There seems to be a correlation with Impact.  It may be that minimizing P also
+minimizes I
 
 Risk
 ^^^^
 
-:ref:`figr` is loss of load hours (LOLH).  The observation here is that there is
-a space where there is 0 LOLH for this annual load.
+:ref:`figr` is loss of load hours (LOLH).  The observation is that there is
+a solution space where there are 0 LOLH for this annual load.
 
 
 
@@ -133,19 +134,19 @@ a space where there is 0 LOLH for this annual load.
 
 .. figure:: ../parm_nl.pdf
 
-   Loads Enabled
+   Loads enabled in Wh
 
 .. _figeg:
 
 .. figure:: ../parm_eg.pdf
 
-   Excess Generation
+   Excess generation in Wh
 
 .. _figc:
 
 .. figure:: ../parm_c.pdf
 
-   kg CO2 eq footprint for manufacture of device
+   kg CO2 eq
 
 .. _figP:
 
@@ -157,7 +158,7 @@ a space where there is 0 LOLH for this annual load.
 
 .. figure:: ../parm_r.pdf
 
-   System Outages
+   System outages in hours
 
 Ranking
 ^^^^^^^
