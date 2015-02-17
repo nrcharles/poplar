@@ -10,8 +10,9 @@ import numpy as np
 import random
 from scipy.interpolate import interp1d
 from devices import Device
+from econ import Bid
 
-NEW_YEAR = datetime.datetime(2013,1,1)
+NEW_YEAR = datetime.datetime(2013, 1, 1)
 hour_to_dt = lambda x: NEW_YEAR + datetime.timedelta(hours=x)
 
 FMT = '%Y-%m-%d %H:%M:%S'
@@ -42,8 +43,25 @@ def load(filename=None):
     return BD
 
 
-class annual(Device):
-    """Annual Weather Data Nominilized to 1 kWH annual
+class Load(Device):
+    def bids(self, record):
+        return [Bid(self.needsenergy(record), self.buy_kwh())]
+
+    def needsenergy(self, record):
+        return self.demand(record['datetime'])
+
+    def buy_kwh(self):
+        return self.value_kwh()
+
+    def value_kwh(self):
+        return self.per_kwh
+
+    def droopable(self, record):
+        return 0.
+
+
+class Annual(Load):
+    """Annual Weather Data Nominilized to 1 kWH annual.
 
     This is class is based on typical Bangladesh grid loads. The data was mined
     from Bangladesh Power Development Boards daily reporting. It is nominilized
@@ -64,14 +82,14 @@ class annual(Device):
         self.mult = mult
         self.classification = "load"
         self.deferable = False
-        self.dimmable = False
         self.year = year
+        self.per_kwh = 0.07
         self.data = load()
 
-    def load(self, dt):
-        """ Load at time
+    def demand(self, dt):
+        """ Demand at time.
 
-        >>> BD = annual(100.)
+        >>> BD = Annual(100.)
         >>> round(BD(datetime.datetime(2014, 12, 16, 20)),1)
         11.7
 
@@ -89,12 +107,12 @@ class annual(Device):
         offset = int(round(dt.hour*2.0))
         return self.data[mdt][offset]*self.mult/40812.5
 
-    __call__ = load
+    __call__ = demand
 
     def total(self):
         """Total Load for Year
 
-        >>> BD = annual(100.)
+        >>> BD = Annual(100.)
         >>> round(BD.total(), 1)
         100000.0
 
@@ -109,7 +127,7 @@ class annual(Device):
         return '%s kWh Load' % round(self.total()/1000., 1)
 
 
-class DailyLoad(Device):
+class DailyLoad(Load):
     """Spline interpolated Load Profile"""
     def __init__(self, hours, loads, kind='cubic', name='Daily Load'):
         self.profile = interp1d(hours, loads, kind=kind)
@@ -117,34 +135,38 @@ class DailyLoad(Device):
         self.classification = "load"
         self.deferable = False
         self.dimmable = False
+        self.per_kwh = 0.07
 
-    def input(self, dt):
+    def demand(self, dt):
         return self.profile(dt.hour + dt.minute/60.)
 
     def total(self):
         return sum([self(hour_to_dt(i)) for i in range(24)])
 
-    __call__ = input
+    __call__ = demand
 
     def __repr__(self):
-        return "%s %s wH" % (self.name,round(self.total(),1))
+        return "%s %s wH" % (self.name, round(self.total(), 1))
 
 times = np.array(range(0, 49))/2.
 spline_profile = DailyLoad(times, np.array(LOAD_PROFILE)*17)
 
-TV_L = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,20,20,20,20,0,0]
+TV_L = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 20, 20, 20,
+        20, 0, 0]
 TV_H = range(25)
-TV = DailyLoad(TV_H,TV_L,kind='linear',name='12" B & W TV')
+TV = DailyLoad(TV_H, TV_L, kind='linear', name='12" B&W TV')
 
 # Average Load Profile from 2013 Annual
 BD_AVE = [0.]*24
-BD = annual()
+BD = Annual()
 for i in range(24*365):
     dt = hour_to_dt(i)
     BD_AVE[dt.hour] += BD(dt)
 
 BD_AVE.append(BD_AVE[0])  # End of day is the same as beginning
-BD_AVE = DailyLoad(range(len(BD_AVE)),np.array(BD_AVE)/365.,name='Mean BD')
+BD_AVE = DailyLoad(range(len(BD_AVE)), np.array(BD_AVE)/365.,
+                   name='Mean Daily')
+
 
 def noisy_profile(t):
     # +/1 10%
