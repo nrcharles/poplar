@@ -1,7 +1,8 @@
 from caelum import eere
 from loads import annual
-from devices import Domain, IdealStorage
-from devices import SimplePV, PVSystem, MPPTChargeController, SimpleChargeController
+from devices import Domain, SimplePV, PVSystem
+from storage import IdealStorage
+from controllers import MPPTChargeController, SimpleChargeController
 
 import matplotlib.pyplot as plt
 
@@ -36,6 +37,7 @@ def system_merit(domains):
     C = 0
     nl = 0  # net load
     eg = 0
+    o = 0
     for domain in domains:
         G += domain.STC()
         g += sum(domain.g)
@@ -48,6 +50,7 @@ def system_merit(domains):
         t += domain.tox()
         c += domain.co2()
         p += domain.cost()
+        o += domain.outages
         r += domain.rvalue()
 
     I = t*c/a/G
@@ -55,14 +58,14 @@ def system_merit(domains):
     P = p/G
     eta = round(nl/g * 100, 1)
     nt = nl*P*I*R/g
-    return ', '.join([str(i) for i in [G, C, eta, P, I, R, t, a, c, r, g,
+    return ', '.join([str(i) for i in [G, C, eta, P, I, R, t, a, c, r, o, g,
                                        eg, l, nl, nt]])
 
 
 if __name__ == '__main__':
     plt.ion()
     plt.show()
-    print 'G,C,eta,P,I,Rg,t,a,c,r,g,eg,l,nl,nt'
+    print 'G,C,eta,P,I,Rg,t,a,c,r,o,g,eg,l,nl,nt'
 
     for i in range(20, 250, 10):
         for j in range(5, 200, 5):
