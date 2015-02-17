@@ -4,6 +4,7 @@ import numpy as np
 import networkx as nx
 from misc import heatmap, latexify
 
+
 def report(domain, figname='SHS', title=None):
     """Generate a PDF report of a domain
 
@@ -17,10 +18,6 @@ def report(domain, figname='SHS', title=None):
         title = figname
     fig = plt.figure(figsize=(8.5, 11))
     td = domain.details()
-    for i in domain.children:
-        if i.classification is 'storage':
-            storage = i
-            td.update(storage.details())
     soc_frequency = fig.add_subplot(321)
     soc_frequency.set_xlabel('SoC')
     soc_frequency.set_ylabel('Frequency')
