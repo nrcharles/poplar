@@ -256,12 +256,20 @@ class PVSystem(Device):
         self.life = 20.
         self.gen = True
 
+    def curtailment_ratio(self, record):
+        """Ratio of energy that has a curtailment penalty."""
+        return 1.0
+
     def nameplate(self):
         """Sum of STC DC nameplate power."""
         total_dc = 0
         for i in self.children:
             total_dc += i.nameplate()
         return total_dc
+
+    def sell_kwh(self):
+        # PV has curtailment penalty for unused energy
+        return 0.
 
     def output(self, irr, t_cell):
         """Sum of energy output."""
@@ -296,6 +304,8 @@ class PVSystem(Device):
             return 0
 
     __call__ = energy
+
+    hasenergy = energy
 
     def __repr__(self):
         return 'Plant %s, %s' % (significant(self.tilt),
@@ -406,15 +416,16 @@ class Domain(Device):
         """STC nameplate rating of all generation in domain."""
         nameplate = 0
         for child in self.children:
-            if child.classification == "source":
-                nameplate += child.nameplate()
+            if hasattr(child, 'gen'):
+                if child.gen:
+                    nameplate += child.nameplate()
         return nameplate
 
     def weather_series(self, array_like):
         for i in array_like:
             self(i)
 
-    def energy_source(self):
+    def energy_source(self, record):
         """Find cheapest energy source.
 
         hasenergy and sell_kwh makes up an offer.
@@ -426,13 +437,13 @@ class Domain(Device):
         choice = None
         # select lowest energy source bid
         for child in self.children:
-            if child.classification == 'storage':
-                if child.hasenergy() and child.sell_kwh() < min_kwh_c:
+            if hasattr(child, 'power_io'):
+                if child.hasenergy(record) and child.sell_kwh() < min_kwh_c:
                     choice = child
-                    min_kwh_c = child.chem.cost_kwh
+                    min_kwh_c = child.sell_kwh()
         return choice
 
-    def energy_sink(self):
+    def energy_sink(self, record):
         """Find most expensive energy sink.
 
         needsenergy and buy_kwh makes up a bid
@@ -445,21 +456,25 @@ class Domain(Device):
         choice = None
         # Select highest bid for energy value
         for child in self.children:
-            if child.classification == 'storage':
-                if child.needsenergy() and child.buy_kwh() > min_kwh_c:
+            if hasattr(child, 'power_io'):
+                if child.needsenergy(record) and child.buy_kwh() > min_kwh_c:
                     choice = child
-                    min_kwh_c = child.chem.cost_kwh
+                    min_kwh_c = child.buy_kwh()
         return choice
 
-    def bank(self, energy):
+    def reconcile(self, energy, record):
+        pass
+
+    def bank(self, energy, record):
         """Bank energy."""
-        if energy > 0:
-            net = self.deposit(energy)
+        net = 0
+        if energy >= 0:
+            net = self.deposit(energy, record)
         if energy < 0:
-            net = self.withdraw(energy)
+            net = self.withdraw(energy, record)
         return net
 
-    def deposit(self, energy):
+    def deposit(self, energy, record):
         """Store surplus energy in a domain.
 
         Args:
@@ -469,17 +484,17 @@ class Domain(Device):
             (float): (wH) surplus that couldn't be transferred.
         """
         # energy is surplus (positive)
-        storage = self.energy_sink()
+        storage = self.energy_sink(record)
         while storage and energy > 0:
-            a = storage.needsenergy()
+            a = storage.needsenergy(record)
             delta = min(a, energy)
             storage.power_io(delta)
             energy -= delta
-            storage = self.energy_sink()
+            storage = self.energy_sink(record)
 
         return energy
 
-    def withdraw(self, energy):
+    def withdraw(self, energy, record):
         """Withdraw energy from a domain to cover a shortfall.
 
         Args:
@@ -489,13 +504,13 @@ class Domain(Device):
             (float): wH shortfall that couldn't be covered.
         """
         # energy is shortfall (negative)
-        storage = self.energy_source()
-        while storage and energy < 0:
-            a = storage.state
+        source = self.energy_source(record)
+        while source and energy < 0:
+            a = source.hasenergy(record)
             delta = min(a, abs(energy))
-            storage.power_io(-delta)
+            source.power_io(-delta)
             energy += delta
-            storage = self.energy_source()
+            source = self.energy_source(record)
 
         return energy
 
@@ -516,26 +531,34 @@ class Domain(Device):
         self.hours.append(hours)
         self.time_series.append(record['datetime'])
 
-        # calculate energy demand
+        # total non-droopable energy demand
         demand = 0
         for child in self.children:
-            if child.classification == 'load':
-                demand += child(record['datetime'])
+            if hasattr(child, 'needsenergy'):
+                child_demand = child.needsenergy(record) * \
+                    (1 - child.droopable(record))
+                if child_demand < 0:
+                    print(child_demand, child, record)
+                demand += child_demand
 
-        # todo: demand response
-        # deferable_capacity = 0
-        # dimmable_capacity = 0
+            # if child.classification == 'load':
+                # demand += child(record['datetime'])
+
+        # total energy with curtailment penalties
         source = 0
         for child in self.children:
-            if child.classification == 'source':
-                source += child(record)
+            if hasattr(child, 'hasenergy'):
+                source += child.hasenergy(record) * child.curtailment_ratio(record)
+            # if child.classification == 'source':
+            #    source += child(record)
 
-        # reconcile energy shortages
-        delta = source - demand
         self.g.append(source)
         self.l.append(demand)
 
-        net = self.bank(delta)
+        delta = source - demand
+        # reconcile energy shortages
+
+        net = self.bank(delta, record)
 
         if net > 0:  # net > 0 is surplus energy
             self.surplus += net
@@ -551,14 +574,64 @@ class Domain(Device):
         energy_stored = 0.
         nominal_capacity = 0.
         for child in self.children:
-            if child.classification == 'storage':
+            if hasattr(child, 'state'):
                 energy_stored += child.state
+            if hasattr(child, 'nominal_capacity'):
                 nominal_capacity += child.nominal_capacity
 
         state = energy_stored/nominal_capacity
         self.state_series.append(state)
 
         return net
+
+    def needsenergy(self, record):
+        e = 0
+        for i in self.children:
+            if hasattr(i, 'needsenergy'):
+                e += i.needsenergy(record)
+        return e
+
+    def hasenergy(self, record):
+        e = 0
+        for i in self.children:
+            if hasattr(i, 'hasenergy'):
+                e += i.hasenergy(record)
+        return e
+
+    def droopable(self, record):
+        # todo: test this code
+        e = 0
+        d = 0
+        for i in self.children:
+            if hasattr(i, 'needsenergy'):
+                ce = i.needsenergy(record)
+                cd = i.droopable(record)
+                d += ce*cd
+                e += ce
+
+        return d/e
+
+    def curtailment_ratio(self, record):
+        # todo: test this code
+        e = 0
+        c = 0
+        for i in self.children:
+            if hasattr(i, 'hassenergy'):
+                ce = i.hasenergy(record)
+                cc = i.curtailment_ratio(record)
+                c += ce*(1-cc)
+                e += ce
+        if e:
+            return c/e
+        else:
+            return 0.
+
+    def buy_kwy(self):
+        m_v = 0
+        for i in self.children:
+            if hasattr(i, 'buy_kwh'):
+                m_v = max(m_v, i.buy_kwy())
+        return m_v
 
     def depletion(self):
         return self.parameter('depletion')

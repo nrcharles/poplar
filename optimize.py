@@ -17,6 +17,7 @@ from visuals import report
 # battery chemistry LA,LI
 # charge controller Simple, MPPT
 # reliablity domains
+# Reliabilty Domain via Droop control based Active Demand Side Management
 # net metering
 # various load profiles
 # enhanced DSM
@@ -65,7 +66,7 @@ class Case(object):
         pv = max(pv, 1)
         size = max(size, 1)
 
-        SHS = Domain([self.load(),
+        SHS = Domain([self.load,
                       PVSystem([self.cc([SimplePV(pv)])],
                                self.place, self.tilt, self.azimuth),
                       IdealStorage(size)])
@@ -193,8 +194,11 @@ def simple(load, merit):
 
 
 if __name__ == '__main__':
-    merit = LolhMerit(0.07)
-    mppt(annual, merit)
+    import loads
+    merit = LolhMerit(1.0)
+    mppt(loads.BD_AVE, merit)
+    # mppt(annual(), merit)
+    #mppt(annual(), merit)
     # simple(annual, merit)
     # merit = LolhMerit(0.07)
     # mppt(annual, merit)

@@ -2,6 +2,7 @@ import numpy as np
 from misc import significant
 
 from devices import Device
+from econ import Bid, Offer
 
 
 class FLA(object):
@@ -79,15 +80,44 @@ class IdealStorage(Device):
     def capacity(self):
         return self.nominal_capacity
 
-    def hasenergy(self):
+    def curtailment_ratio(self, record):
+        """Ratio of energy that has a curtailment penalty."""
+        return 0.
+
+    def hasenergy(self, record):
         """Determine if a device has energy.
         """
         return self.state
 
-    def needsenergy(self):
+    def needsenergy(self, record):
         """Determine if device needs energy.
         """
         return self.nominal_capacity - self.state
+
+    def bids(self, record):
+        """Energy bid for record.
+
+        Note: record is currently not used.
+
+        Returns:
+            (list) of bids.
+
+        """
+        return [Bid(self.needsenergy(record), self.buy_kwh())]
+
+    def offers(self, record):
+        """Energy offer for record.
+
+        Note: record is currently not used.
+
+        Returns:
+            (list) of bids.
+
+        """
+        return [Offer(self.hasenergy(), self.sell_kwh())]
+
+    def droopable(self, record):
+        return 1.
 
     def sell_kwh(self):
         """Cost of withdrawing energy."""
