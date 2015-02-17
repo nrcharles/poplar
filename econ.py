@@ -14,6 +14,17 @@ REGULATION_PRICE = 60.  # $/MW/hour
 p = lambda x, m, b: math.ceil(x/m)*(VOLUME_CONSTANT*math.log(math.ceil(x/m))+b)
 # Where x is kwh, m is increment size and b is price floor constant
 
+class Bid(object):
+    def __init__(self, value, kwh):
+        self.value = value
+        self.kwh = kwh
+
+
+class Offer(object):
+    def __init__(self, value, kwh):
+        self.value = value
+        self.kwh = kwh
+
 
 def gini(list_of_values):
     sorted_list = sorted(list_of_values)
@@ -78,6 +89,21 @@ def scaling():
 # value of lost load Voll
 # Loss ($/kW) = f(duration, season, time of day, notice)
 # customer damage function (CDF)
+
+C = """
+Item            Value                       Cost
+====            ======================      ================
+MPPT            % reduction of PV           $2 + power gates
+DSM             % reduction of storage
+interconnection reduction of storage        power conversion /grid extension
+Net metering    sell excess energy          interconnection / policy
+Regulation                                  interconneciton / policy
+Capacity
+Carbon
+Energy
+
+"""
+
 
 if __name__ == '__main__':
     scaling()
