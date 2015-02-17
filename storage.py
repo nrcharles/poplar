@@ -26,7 +26,7 @@ class FLA(object):
 
 
 class IdealStorage(Device):
-    """Ideal Storage class
+    """Ideal storage class.
 
     Note:
         This is an ideal, there are no self discharge or efficiency losses,
@@ -69,7 +69,7 @@ class IdealStorage(Device):
         return self.weight()*self.chem.co2_kg
 
     def weight(self):
-        """weight in kg"""
+        """Storage weight in kg."""
         return self.nominal_capacity/self.chem.usable/self.chem.density
 
     def cost(self):
@@ -80,29 +80,29 @@ class IdealStorage(Device):
         return self.nominal_capacity
 
     def hasenergy(self):
-        """Determine if a device has energy
+        """Determine if a device has energy.
         """
         return self.state
 
     def needsenergy(self):
-        """Determine if device needs energy
+        """Determine if device needs energy.
         """
         return self.nominal_capacity - self.state
 
     def sell_kwh(self):
-        """Cost of withdrawing energy"""
+        """Cost of withdrawing energy."""
         return self.chem.cost_kwh
 
     def buy_kwh(self):
-        """Value of storing energy"""
+        """Value of storing energy."""
         return self.chem.cost_kwh
 
     def depletion(self):
-        """Battery depletion expense
+        """Battery depletion expense.
 
         This is a simple calculation that levelizes battery replacement costs.
 
-        .. math:: (kWh throughput) \cdot (kWh cost)
+        .. math:: (\\text{kWh throughput}) \\cdot (\\text{kWh cost})
 
         Returns:
             (float) USD
