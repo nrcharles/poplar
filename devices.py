@@ -399,7 +399,8 @@ class Domain(Device):
             significant(self.parameter('losses')),
             'Autonomy (hours) (Median Load/C)': significant(self.autonomy()),
             'Capacity Factor (%)': significant(self.capacity_factor()*100.),
-            'Domain surplus (kWh)': significant(self.surplus),
+            'Domain surplus (Wh)': significant(self.surplus),
+            'Domain Generation (Wh)': significant(sum(self.g)),
             'Domain Parts (USD)': significant(self.cost()),
             'Domain depletion (USD)': significant(self.depletion()),
             'Domain lolh (hours)': significant(self.lolh),
@@ -465,7 +466,7 @@ class Domain(Device):
     def reconcile(self, energy, record):
         pass
 
-    def bank(self, energy, record):
+    def power_io(self, energy, record):
         """Bank energy."""
         net = 0
         if energy >= 0:
@@ -488,7 +489,7 @@ class Domain(Device):
         while storage and energy > 0:
             a = storage.needsenergy(record)
             delta = min(a, energy)
-            storage.power_io(delta)
+            storage.power_io(delta, record)
             energy -= delta
             storage = self.energy_sink(record)
 
@@ -508,13 +509,13 @@ class Domain(Device):
         while source and energy < 0:
             a = source.hasenergy(record)
             delta = min(a, abs(energy))
-            source.power_io(-delta)
+            source.power_io(-delta, record)
             energy += delta
             source = self.energy_source(record)
 
         return energy
 
-    def power_io(self, record, hours=1.0):
+    def calc(self, record, hours=1.0):
         """Calculate energy for data record.
 
         Domains behave like a an energy market, excess energy is are transfered
@@ -529,6 +530,7 @@ class Domain(Device):
 
         """
         self.hours.append(hours)
+        # print record['datetime']
         self.time_series.append(record['datetime'])
 
         # total non-droopable energy demand
@@ -558,7 +560,7 @@ class Domain(Device):
         delta = source - demand
         # reconcile energy shortages
 
-        net = self.bank(delta, record)
+        net = self.power_io(delta, record)
 
         if net > 0:  # net > 0 is surplus energy
             self.surplus += net
@@ -600,37 +602,45 @@ class Domain(Device):
 
     def droopable(self, record):
         # todo: test this code
-        e = 0
-        d = 0
+        e = 0.
+        d = 0.
+        # return 0.
         for i in self.children:
             if hasattr(i, 'needsenergy'):
                 ce = i.needsenergy(record)
                 cd = i.droopable(record)
                 d += ce*cd
                 e += ce
-
-        return d/e
+        # print d,e
+        if e:
+            # print d/e
+            return d/e
+        else:
+            return 0.
 
     def curtailment_ratio(self, record):
         # todo: test this code
-        e = 0
-        c = 0
+        e = 0.
+        c = 0.
+        # return 0.
         for i in self.children:
             if hasattr(i, 'hassenergy'):
                 ce = i.hasenergy(record)
                 cc = i.curtailment_ratio(record)
-                c += ce*(1-cc)
+                c += ce*(1.-cc)
                 e += ce
         if e:
+            # print c/e
             return c/e
         else:
             return 0.
 
-    def buy_kwy(self):
+    def buy_kwh(self):
+        # return 0.07
         m_v = 0
         for i in self.children:
             if hasattr(i, 'buy_kwh'):
-                m_v = max(m_v, i.buy_kwy())
+                m_v = max(m_v, i.buy_kwh())
         return m_v
 
     def depletion(self):
@@ -639,10 +649,10 @@ class Domain(Device):
     def rvalue(self):
         return self.r*self.outages
 
-    __call__ = power_io
+    __call__ = calc
 
     def __repr__(self):
-        return 'Domain $%s' % significant(self.cost())
+        return 'Domain %s Outages' % self.outages # significant(self.cost())
 
 
 if __name__ == '__main__':
