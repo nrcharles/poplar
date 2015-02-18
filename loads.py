@@ -124,7 +124,7 @@ class Annual(Load):
         return sum(self(hour_to_dt(i)) for i in range(365*24))
 
     def __repr__(self):
-        return '%s kWh Load' % round(self.total()/1000., 1)
+        return '%s kWh Annual' % round(self.total()/1000., 1)
 
 
 class DailyLoad(Load):
@@ -146,7 +146,7 @@ class DailyLoad(Load):
     __call__ = demand
 
     def __repr__(self):
-        return "%s %s wH" % (self.name, round(self.total(), 1))
+        return "%s %s wH Daily" % (self.name, round(self.total(), 1))
 
 times = np.array(range(0, 49))/2.
 spline_profile = DailyLoad(times, np.array(LOAD_PROFILE)*17)
@@ -155,6 +155,8 @@ TV_L = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 20, 20, 20,
         20, 0, 0]
 TV_H = range(25)
 TV = DailyLoad(TV_H, TV_L, kind='linear', name='12" B&W TV')
+
+FLAT = DailyLoad([0,25],[8.15, 8.15], kind='linear', name ='Flat')
 
 # Average Load Profile from 2013 Annual
 BD_AVE = [0.]*24
