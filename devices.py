@@ -1,8 +1,6 @@
-from solpy import irradiation
 import numpy as np
-from misc import significant, module_temp
 import networkx as nx
-
+from misc import significant
 
 class Device(object):
 
@@ -100,218 +98,6 @@ class Device(object):
     def __repr__(self):
         return 'Device'
 
-
-class SimplePV(Device):
-
-    """Simple PV module (Generic).
-
-    Attributes:
-        imp: (float) current.
-        cost_watt: (float) cost (USD/w).
-        tc_vmp: (float) voltage temperature coefficent (V/C).
-        tc_imp: (float) current temperature coefficent (V/C).
-
-    Note: Constants choosen based on typical manufacturer data
-
-    """
-
-    def __init__(self, W):
-        """Create a generic PV module typical of a module in that power class.
-
-        Args:
-            W (float): Watts
-        """
-        imax = 8.
-        v_bus = [24, 20, 12]
-        self.cost_watt = .8
-        for v in v_bus:
-            vmp = v*1.35
-            imp = W/vmp
-            if imp < imax:
-                self.vmp = vmp
-                self.imp = imp
-        self.tc_vmp = self.vmp * -0.0044
-        self.tc_imp = self.imp * 0.0004
-
-    def area(self):
-        """Total area PV Module in M^2."""
-        return self.nameplate()/1000./.15
-
-    def co2(self):
-        """CO2 for system.
-
-        Note:
-        Assuming 1800 kg/kWp
-        ~1600-2000/kWp :cite:`laleman2013comparing`
-
-        Returns:
-            (float): kg CO2 eq
-        """
-        return 1.8 * self.nameplate()
-
-    def cost(self):
-        """total module cost."""
-        return self.nameplate() * self.cost_watt
-
-    def nameplate(self):
-        """Nameplate rating at STC conditions."""
-        v, i = self.output(1000., 25.)
-        W = v*i
-        return W
-
-    def output(self, irr, t_cell):
-        """Temperature compensated module output.
-
-        Note: this is a heuristic method.
-
-
-        This is often calulated either by :cite:`DeSoto2006`, :cite:`King2007`
-        or :cite:`Dobos2012`.
-
-        For computer processing performance temperature compensation is
-        simplified to:
-
-        .. math:: V_{mp} = V_{mpo} + \\beta_{Vmp}(T_{c} - T_{o})
-
-        >>> pv = SimplePV(133.4)
-        >>> v, i = pv(1000, 25.)
-        >>> round(v*i, 1)  # NIST: 133.4
-        133.4
-
-        >>> v, i = pv(882.6, 39.5)
-        >>> round(v*i, 1)  # NIST 109.5
-        110.2
-
-        >>> v, i = pv(696.0, 47.0)
-        >>> round(v*i, 1)  # NIST 80.1 i+
-        83.9
-
-        >>> v, i = pv(465.7, 32.2)
-        >>> round(v*i, 1) # NIST 62.7
-        60.2
-
-        >>> v, i = pv(189.9, 36.5)
-        >>> round(v*i, 1)  # NIST 23.8
-        24.1
-
-        Args:
-            irr: (float) W/m^2 irradiance or Wh/mh insolation.
-            t_cell: (float) temperature of cell in C.
-
-        Returns:
-            vmp, imp: (tuple) of voltage and current.
-        """
-        vmp = self.vmp + (t_cell - 25.) * self.tc_vmp
-
-        return vmp, self.imp * irr / 1000.
-
-    def tox(self):
-        """Module Toxicity.
-
-        This is not a well developed area.
-        """
-        return self.nameplate() * .3  # todo: placeholder value
-
-    __call__ = output
-
-    def __repr__(self):
-        v, i = self(1000., 25.)
-        W = v*i
-        return '%s W PV' % significant(W)
-
-
-class PVSystem(Device):
-
-    """
-    PV System/Plant.
-
-    Attributes:
-        place: (tuple): lat,lon geolocation.
-        tilt: (float) degrees array tilt.
-        azimuth: (float) degrees array azimuth.
-        shape: (list) of energy source objects
-        life: (int) years expected life of system
-
-    """
-
-    def __init__(self, children, place, tilt, azimuth):
-        """Should have at least one child.
-
-        Args:
-            children(list): list of power conversion devices.
-            place(tuple): lat, lon geolocation.
-            tilt(float): array tilt in degrees.
-            azimuth(degrees): array azimuth in degrees.
-
-        """
-        self.place = place
-        self.classification = "source"
-        self.dispactachable = False
-        self.tilt = tilt
-        self.azimuth = azimuth
-        self.children = children
-        self.device_cost = 0.
-        self.device_co2 = 0.
-        self.device_tox = 0.
-        self.life = 20.
-        self.gen = True
-
-    def curtailment_ratio(self, record):
-        """Ratio of energy that has a curtailment penalty."""
-        return 1.0
-
-    def nameplate(self):
-        """Sum of STC DC nameplate power."""
-        total_dc = 0
-        for i in self.children:
-            total_dc += i.nameplate()
-        return total_dc
-
-    def sell_kwh(self):
-        # PV has curtailment penalty for unused energy
-        return 0.
-
-    def output(self, irr, t_cell):
-        """Sum of energy output."""
-        return sum([i.output(irr, t_cell) for i in self.children])
-
-    def depletion(self):
-        """1 year depletion."""
-        return self.cost()/self.life
-
-    def losses(self):
-        """Sum total losses."""
-        return sum([i.losses() for i in self.children])
-
-    def tox(self):
-        """Sum total Toxicity."""
-        return sum([i.tox() for i in self.children])
-
-    def energy(self, t):
-        """Calculate total energy for a time period.
-
-        Args:
-            t(dict): weather data record
-        """
-        try:
-            irr = irradiation.irradiation(t, self.place, t=self.tilt,
-                                          array_azimuth=self.azimuth,
-                                          model='p9')
-            t_cell = module_temp(irr, t)
-            return self.output(irr, t_cell)
-        except Exception as e:
-            print(e)
-            return 0
-
-    __call__ = energy
-
-    hasenergy = energy
-
-    def __repr__(self):
-        return 'Plant %s, %s' % (significant(self.tilt),
-                                 significant(self.azimuth))
-
-
 class Domain(Device):
 
     """Base Domain Class.
@@ -346,8 +132,15 @@ class Domain(Device):
         self.net_l = []  # enabled load
         self.surplus = 0.
         self.shortfall = 0.
+        self.credits = {}
+        self.debits = {}
+        self.balance = {}
+        self.demand = {}
         self.lolh = 0.
         self.r = 1.
+
+    def td(self):
+        return sum([self.demand[i] for i in self.time_series])
 
     def autonomy(self):
         """Calculate domain autonomy.
@@ -463,16 +256,58 @@ class Domain(Device):
                     min_kwh_c = child.buy_kwh()
         return choice
 
-    def reconcile(self, energy, record):
-        pass
+    def reconcile(self, record):
+        key = record['datetime']
+        for child in self.children:
+            if type(child) == Domain:
+                print self.balance[key], self.credits[key], self.debits[key], self.balance[key]
+                if self.balance[key]:
+                    pass
+
 
     def power_io(self, energy, record):
         """Bank energy."""
         net = 0
+        # demand = self.l[-1]  # may be wrong
+        key = record['datetime']
+        if energy >= 0:
+            self.credits[key] = self.credits.setdefault(key, 0) + energy
+        if energy < 0:
+            self.debits[key] = self.debits.setdefault(key, 0) + energy
+        self.balance[key] = self.balance.setdefault(key, 0) + energy
+        #demand = self.needsenergy(record) * (1 - self.droopable(record))
+        demand = self.demand[key]
+
         if energy >= 0:
             net = self.deposit(energy, record)
         if energy < 0:
             net = self.withdraw(energy, record)
+
+        if net > 0:  # net > 0 is surplus energy
+            self.surplus += net
+
+        if net < 0:  # net < 0 is energy shortfall
+            self.shortfall -= net
+            self.outages += 1
+            self.lolh += net / - demand
+
+        self.d.append(net)
+        self.net_l.append(min(demand + net, demand))
+
+        energy_stored = 0.
+        nominal_capacity = 0.
+        for child in self.children:
+            if hasattr(child, 'state'):
+                energy_stored += child.state
+            if hasattr(child, 'nominal_capacity'):
+                nominal_capacity += child.nominal_capacity
+
+        if nominal_capacity == 0.:
+            self.state_series.append(energy_stored)
+        else:
+            state = energy_stored/nominal_capacity
+            self.state_series.append(state)
+
         return net
 
     def deposit(self, energy, record):
@@ -531,26 +366,37 @@ class Domain(Device):
         """
         self.hours.append(hours)
         # print record['datetime']
-        self.time_series.append(record['datetime'])
+        key = record['datetime']
+        # self.time_series.append(key)
 
         # total non-droopable energy demand
-        demand = 0
-        for child in self.children:
-            if hasattr(child, 'needsenergy'):
-                child_demand = child.needsenergy(record) * \
-                    (1 - child.droopable(record))
-                if child_demand < 0:
-                    print(child_demand, child, record)
-                demand += child_demand
+
+        for node in self.graph():
+            if type(node) == Domain:
+                node_dmnd = node.needsenergy(record) * (1. - node.droopable(record))
+                node.demand[key] = node.demand.setdefault(key, 0) + node_dmnd
+                # print id(node), node.demand[key], node.needsenergy(record), node.droopable(record), node_dmnd
+                # init
+                node.time_series.append(key)
+                node.credits[key] = 0.
+                node.debits[key] = 0.
+                node.balance[key] = 0.
+
+        demand = self.demand[key]
 
             # if child.classification == 'load':
                 # demand += child(record['datetime'])
 
         # total energy with curtailment penalties
         source = 0
+        for node in self.graph():
+            if type(node) == Domain:
+                node.balance[key] += node.hasenergy(record) * node.curtailment_ratio(record)
+
         for child in self.children:
             if hasattr(child, 'hasenergy'):
                 source += child.hasenergy(record) * child.curtailment_ratio(record)
+        #print source, self.balance[key]
             # if child.classification == 'source':
             #    source += child(record)
 
@@ -561,29 +407,7 @@ class Domain(Device):
         # reconcile energy shortages
 
         net = self.power_io(delta, record)
-
-        if net > 0:  # net > 0 is surplus energy
-            self.surplus += net
-
-        if net < 0:  # net < 0 is energy shortfall
-            self.shortfall -= net
-            self.outages += 1
-            self.lolh += net / - demand
-
-        self.d.append(net)
-        self.net_l.append(min(demand + net, demand))
-
-        energy_stored = 0.
-        nominal_capacity = 0.
-        for child in self.children:
-            if hasattr(child, 'state'):
-                energy_stored += child.state
-            if hasattr(child, 'nominal_capacity'):
-                nominal_capacity += child.nominal_capacity
-
-        state = energy_stored/nominal_capacity
-        self.state_series.append(state)
-
+        #self.reconcile(record)
         return net
 
     def needsenergy(self, record):
@@ -604,7 +428,6 @@ class Domain(Device):
         # todo: test this code
         e = 0.
         d = 0.
-        # return 0.
         for i in self.children:
             if hasattr(i, 'needsenergy'):
                 ce = i.needsenergy(record)
@@ -619,15 +442,15 @@ class Domain(Device):
             return 0.
 
     def curtailment_ratio(self, record):
-        # todo: test this code
+        # todo: fix this code
         e = 0.
         c = 0.
         # return 0.
         for i in self.children:
-            if hasattr(i, 'hassenergy'):
+            if hasattr(i, 'hasenergy'):
                 ce = i.hasenergy(record)
                 cc = i.curtailment_ratio(record)
-                c += ce*(1.-cc)
+                c += ce*cc
                 e += ce
         if e:
             # print c/e
