@@ -4,6 +4,27 @@ import numpy as np
 import networkx as nx
 from misc import heatmap, latexify
 
+def table_dict(d):
+    maxlen_k = 17
+    maxlen_v = 5
+    tab = []
+    for k in d.iterkeys():
+        if maxlen_k < len(k):
+            l_k = len(k)
+            l_v = len(str(d[k]))
+            if l_k > maxlen_k:
+                maxlen_k = l_k
+            if l_v > maxlen_v:
+                maxlen_v = l_v
+    sep = ''.join(['='] * maxlen_k + [' '] + ['=']*maxlen_v)
+    tab.append(sep)
+    tab.append('%s%s' % ('Parameter (units)'.ljust(maxlen_k+1), 'Value'))
+    tab.append(sep)
+    for k in d.iterkeys():
+        tab.append('%s%s' % (k.ljust(maxlen_k+1), d[k]))
+    tab.append(sep)
+    return tab
+
 
 def report(domain, figname='SHS', title=None):
     """Generate a PDF report of a domain
