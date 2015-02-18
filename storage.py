@@ -140,7 +140,7 @@ class IdealStorage(Device):
         prospective = self.throughput/1000.*self.chem.cost_kwh
         return prospective
 
-    def power_io(self, power, hours=1.):
+    def power_io(self, power, record=None, hours=1.):
         """Power input/output
 
         >>> s = IdealStorage(100)
