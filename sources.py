@@ -1,11 +1,13 @@
 from devices import Device
 from solpy import irradiation
 from misc import significant, module_temp
+from econ import Offer
 
 class Source(Device):
-    pass
+    def offer(self, record):
+        return Offer(id(self), self.hasenergy(record), self.sell_kwh())
 
-class SimplePV(Source):
+class SimplePV(Device):
 
     """Simple PV module (Generic).
 
@@ -159,6 +161,8 @@ class PVSystem(Source):
         self.device_tox = 0.
         self.life = 20.
         self.gen = True
+        self.balance = {}
+        self.debits = {}
 
     def curtailment_ratio(self, record):
         """Ratio of energy that has a curtailment penalty."""
@@ -209,7 +213,30 @@ class PVSystem(Source):
 
     __call__ = energy
 
-    hasenergy = energy
+    def hasenergy(self, record):
+        key = record['datetime']
+        self.balance[key] = self.balance.setdefault(key,  self.energy(record))
+        return self.balance[key]
+
+    def needsenergy(self, record):
+        # stupid
+        return 0.
+
+    def droopable(self, record):
+        # stupid
+        return 0.
+
+    def buyenergy(self, record):
+        # stupid 
+        return 0.
+
+    def power_io(self, energy, record):
+        key = record['datetime']
+        if abs(energy) > self.balance[key]:
+            raise Exception('PV over commited')
+        self.balance[key] += energy
+        self.debits[key] = self.debits.setdefault(key, 0) + energy
+        return 0.
 
     def __repr__(self):
         return 'Plant %s, %s' % (significant(self.tilt),

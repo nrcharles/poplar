@@ -1,5 +1,15 @@
 import numpy as np
 
+class Counter(object):
+    def __init__(self):
+        self.current = {}
+
+    def __iter__(self):
+        return self
+
+    def next(self, a):
+        self.current[a] = self.current.setdefault(a,0) + 1
+        return self.current[a]
 
 def latexify(s):
     s = s.replace('%', '\\%')

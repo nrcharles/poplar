@@ -15,6 +15,12 @@ Controllers
 .. automodule:: controllers
    :members:
 
+Sources
+-------
+
+.. automodule:: sources
+   :members:
+
 Loads
 -----
 

@@ -11,6 +11,9 @@ import random
 from scipy.interpolate import interp1d
 from devices import Device
 from econ import Bid
+from misc import Counter
+
+SMALL_ID = Counter()
 
 NEW_YEAR = datetime.datetime(2013, 1, 1)
 hour_to_dt = lambda x: NEW_YEAR + datetime.timedelta(hours=x)
@@ -44,11 +47,16 @@ def load(filename=None):
 
 
 class Load(Device):
-    def bids(self, record):
-        return [Bid(self.needsenergy(record), self.buy_kwh())]
+    def bid(self, record):
+        return Bid(id(self), self.needsenergy(record), self.buy_kwh())
 
     def needsenergy(self, record):
-        return self.demand(record['datetime'])
+        key = record['datetime']
+        return self.balance.setdefault(key, self.demand(key))
+
+    def power_io(self, energy, record):
+        key = record['datetime']
+        self.balance[key] += energy
 
     def buy_kwh(self):
         return self.value_kwh()
@@ -85,16 +93,18 @@ class Annual(Load):
         self.year = year
         self.per_kwh = 0.07
         self.data = load()
+        self.small_id = SMALL_ID.next(type(self))
+        self.balance = {}
 
     def demand(self, dt):
         """ Demand at time.
 
         >>> BD = Annual(100.)
         >>> round(BD(datetime.datetime(2014, 12, 16, 20)),1)
-        11.7
+        -11.7
 
         >>> round(BD(datetime.datetime(2014, 1, 16, 3)), 1)
-        7.2
+        -7.2
 
         Args:
             dt (datetime)
@@ -105,7 +115,7 @@ class Annual(Load):
         """
         mdt = datetime.date(self.year, dt.month, dt.day)
         offset = int(round(dt.hour*2.0))
-        return self.data[mdt][offset]*self.mult/40812.5
+        return -self.data[mdt][offset]*self.mult/40812.5
 
     __call__ = demand
 
@@ -114,7 +124,7 @@ class Annual(Load):
 
         >>> BD = Annual(100.)
         >>> round(BD.total(), 1)
-        100000.0
+        -100000.0
 
 
         Returns:
@@ -129,13 +139,15 @@ class Annual(Load):
 
 class DailyLoad(Load):
     """Spline interpolated Load Profile"""
-    def __init__(self, hours, loads, kind='cubic', name='Daily Load'):
+    def __init__(self, hours, loads, kind='cubic', name=''):
         self.profile = interp1d(hours, loads, kind=kind)
         self.name = name
         self.classification = "load"
         self.deferable = False
         self.dimmable = False
         self.per_kwh = 0.07
+        self.small_id = SMALL_ID.next(name)
+        self.balance = {}
 
     def demand(self, dt):
         return self.profile(dt.hour + dt.minute/60.)
@@ -146,13 +158,13 @@ class DailyLoad(Load):
     __call__ = demand
 
     def __repr__(self):
-        return "%s %s wH Daily" % (self.name, round(self.total(), 1))
+        return "%s %s, %s wH Daily" % (self.name, self.small_id, round(self.total(), 1))
 
 times = np.array(range(0, 49))/2.
 spline_profile = DailyLoad(times, np.array(LOAD_PROFILE)*17)
 
-TV_L = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 20, 20, 20,
-        20, 0, 0]
+TV_L = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -20, -20, -20,
+        -20, 0, 0]
 TV_H = range(25)
 TV = DailyLoad(TV_H, TV_L, kind='linear', name='12" B&W TV')
 
@@ -190,3 +202,8 @@ def quantify_load(load, solar_gen):
 if __name__ == '__main__':
     import doctest
     doctest.testmod()
+    REC = {'datetime':datetime.datetime.now()}
+    print BD_AVE.needsenergy(REC)
+    print BD_AVE(datetime.datetime.now())
+    print BD(datetime.datetime.now())
+    print TV(datetime.datetime(2012,12,15,20))

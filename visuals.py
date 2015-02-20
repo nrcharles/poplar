@@ -127,6 +127,31 @@ def report(domain, figname='SHS', title=None):
     fig.savefig('%s.pdf' % figname)
     return table_str, figure_str
 
+def save_graph(domain, figname):
+    fig  = plt.figure()
+    domain_graph = fig.add_subplot(111)
+    G = domain.graph()
+    # pos = nx.spectral_layout(G)
+    pos = nx.spring_layout(G)
+    lpos = {}
+    for i in pos.iterkeys():
+        lpos[i] = pos[i] + [0, .05]
+    nx.draw_networkx_nodes(G, pos=pos, ax=domain_graph, node_size=200)
+    nx.draw_networkx_edges(G, pos=pos, ax=domain_graph)
+    ts = nx.draw_networkx_labels(G, pos=lpos, font_size=7)  # rotation=45)
+
+    for key in ts.iterkeys():
+        ts[key].set_rotation(45)
+
+    p = 1.2
+    x1, x2 = domain_graph.get_xlim()
+    y1, y2 = domain_graph.get_ylim()
+    domain_graph.set_xlim(x1*p, x2*p)
+    domain_graph.set_ylim(y1*p, y2*p)
+    domain_graph.axis('off')
+    fig.tight_layout()
+    fig.savefig('%s.pdf' % figname)
+
 
 if __name__ == '__main__':
     plt.ion()

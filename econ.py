@@ -15,16 +15,44 @@ p = lambda x, m, b: math.ceil(x/m)*(VOLUME_CONSTANT*math.log(math.ceil(x/m))+b)
 # Where x is kwh, m is increment size and b is price floor constant
 
 class Bid(object):
-    def __init__(self, value, kwh):
+    def __init__(self, obj_id, wh, value):
+        self.obj_id = obj_id
         self.value = value
-        self.kwh = kwh
+        self.wh = wh
+
+    def __repr__(self):
+        return '%s %s wh %s' % (self.obj_id, self.wh, self.value)
 
 
 class Offer(object):
-    def __init__(self, value, kwh):
+    def __init__(self, obj_id, wh, value):
+        self.obj_id = obj_id
         self.value = value
-        self.kwh = kwh
+        self.wh = wh
 
+    def __repr__(self):
+        return '%s %s wh %s' % (self.obj_id, self.wh, self.value)
+
+def high_bid(nodes, record):
+    high_bid = None
+    bid_value = 0.
+    for node in nodes:
+        if hasattr(node, 'bid'):
+            bid = node.bid(record)
+            # print node, bid
+            if bid.wh != 0. and bid.value > bid_value:
+                high_bid = bid
+    return high_bid
+
+def low_offer(nodes, record):
+    low_offer = None
+    offer_value = 100.
+    for node in nodes:
+        if hasattr(node, 'offer'):
+            offer = node.offer(record)
+            if offer.wh !=0. and offer.value < offer_value:
+                low_offer = offer
+    return low_offer
 
 def gini(list_of_values):
     sorted_list = sorted(list_of_values)

@@ -1,6 +1,12 @@
 import numpy as np
 import networkx as nx
-from misc import significant
+from misc import significant, Counter
+from econ import high_bid, low_offer
+
+import logging
+logger = logging.getLogger(__name__)
+
+SMALL_ID = Counter()
 
 class Device(object):
 
@@ -86,14 +92,24 @@ class Device(object):
         Returns:
             (Graph)
         """
-        G = nx.Graph()
-        G.add_node(self)
         if hasattr(self, 'children'):
             for i in self.children:
-                G.add_node(i)
-                G.add_edge(self, i)
-                G = nx.compose(G, i.graph())
-        return G
+                if not hasattr(self, 'network'):
+                    self.network = i.graph()
+                    self.network.add_node(self)
+                    self.network.add_edge(self,i)
+                    print self.network.edges()
+                else:
+                    c = i.graph()
+                    self.network.add_nodes_from(c.nodes())
+                    self.network.add_edges_from(c.edges())
+                    self.network.add_edge(self, i)
+                    i.network = self.network
+        if not hasattr(self,'network'):
+            self.network = nx.Graph()
+            self.network.add_node(self)
+
+        return self.network
 
     def __repr__(self):
         return 'Device'
@@ -121,6 +137,7 @@ class Domain(Device):
         """
         # super(Device, self).__init__()
         self.children = children
+        self.small_id = SMALL_ID.next(type(self))
         self.g = []
         self.l = []
         self.d = []
@@ -136,11 +153,31 @@ class Domain(Device):
         self.debits = {}
         self.balance = {}
         self.demand = {}
+        self.source = {}
         self.lolh = 0.
         self.r = 1.
+        self.network = self.graph()
+        #for node in self.connected_domains():
+        #    node.network = self.network
 
-    def td(self):
-        return sum([self.demand[i] for i in self.time_series])
+    def network_has_energy(self, key):
+        for node in self.connected_domains():
+            if node.balance[key] > 0:
+                return True
+        return False
+
+    def network_needs_energy(self, key):
+        for node in self.connected_domains():
+            if node.balance[key] < 0:
+                return True
+        return False
+
+    def network_can_store_energy(self, key):
+        for node in self.network:
+            if hasattr(node, 'capacity_availible'):
+                if node.capacity_availible(key):
+                    return True
+        return False
 
     def autonomy(self):
         """Calculate domain autonomy.
@@ -184,16 +221,24 @@ class Domain(Device):
         else:
             return 0.
 
+    def log_dict_to_list(self, log_dict, default=0):
+        return [getattr(self, log_dict).setdefault(i,default)
+                for i in self.time_series]
+
     def details(self):
         """Create dict of metrics."""
         results = {
-            'Desired load (wh)': significant(sum(self.l)),
+            'Demand (wh)': significant(sum(self.log_dict_to_list('demand'))),
+            'Net (wh)': significant(sum(self.log_dict_to_list('balance'))),
+            'Domain Sources(wh)': significant(sum(self.log_dict_to_list('source'))),
+            'Domain credits(wh)': significant(sum(self.log_dict_to_list('credits'))),
+            'Domain dedits(wh)': significant(sum(self.log_dict_to_list('debits'))),
             'Domain Generation losses (wh)':
             significant(self.parameter('losses')),
             'Autonomy (hours) (Median Load/C)': significant(self.autonomy()),
-            'Capacity Factor (%)': significant(self.capacity_factor()*100.),
+            # 'Capacity Factor (%)': significant(self.capacity_factor()*100.),
             'Domain surplus (Wh)': significant(self.surplus),
-            'Domain Generation (Wh)': significant(sum(self.g)),
+            # 'Domain Generation (Wh)': significant(sum(self.g)),
             'Domain Parts (USD)': significant(self.cost()),
             'Domain depletion (USD)': significant(self.depletion()),
             'Domain lolh (hours)': significant(self.lolh),
@@ -201,7 +246,7 @@ class Domain(Device):
             'A (m2)': significant(self.parameter('area')),
             'Toxicity (CTUh)': significant(self.tox()),
             'CO2 (kgCO2 eq)': significant(self.co2()),
-            'Domain Efficiency (%)': significant(self.eta()*100),
+            # 'Domain Efficiency (%)': significant(self.eta()*100),
             'STC (w)': self.STC()
         }
         return results
@@ -260,7 +305,7 @@ class Domain(Device):
         key = record['datetime']
         for child in self.children:
             if type(child) == Domain:
-                print self.balance[key], self.credits[key], self.debits[key], self.balance[key]
+                # print self.balance[key], self.credits[key], self.debits[key], self.balance[key]
                 if self.balance[key]:
                     pass
 
@@ -350,6 +395,95 @@ class Domain(Device):
 
         return energy
 
+    def transaction(self, offer, bid, record):
+        # transer energy from destination bid to source offer
+        key = record['datetime']
+        delta = min(abs(self.balance[key]),offer.wh)
+        dest = self.select_node(bid.obj_id)
+        # add to bid destination
+        dest.power_io(delta, record)
+        #self.demand[key] += delta
+        self.balance[key] += delta
+        self.credits[key] += delta
+        # subtract from offer source
+        source = self.select_node(offer.obj_id)
+        source.power_io(-delta, record)
+        source_domain = self.select_domain(offer.obj_id)
+        source_domain.debits[key] -= delta
+        source_domain.balance[key] -= delta
+        # subtracting from source ,adding to self
+        # -7.17085342045 14.4358005547
+        # -21.6066539751 28.8716011093
+        logger.info('Transfered %s wH from %s toward %s wH in %s',delta, source, bid.wh, dest)
+        return True
+
+    def get_energy(self, record, bid):
+        # energy auction
+        key = record['datetime']
+        initial_demand = self.demand[key]
+        node = self.select_node(bid.obj_id)
+        logger.debug("New auction %s for %s wH" , key, initial_demand)
+        offer = low_offer(self.network, record)
+        # print node, self.network_has_energy(key), node.needsenergy(record)
+        # print offer
+        while offer and node.needsenergy(record):
+            logger.debug('High bid %s' , bid)
+            # get offers
+            self.transaction(offer, bid, record)
+            offer = low_offer(self.network, record)
+        # account for shortage
+        if self.balance[key] != 0.:
+            logger.debug("Shortfall of %s, in %s", self.balance[key], self)
+            self.outages += 1
+            self.shortfall += self.demand[key]
+            self.lolh += (initial_demand - self.balance[key])/initial_demand * \
+                self.timestep
+            return False
+        return True
+
+    def send_energy(self, record):
+        key = record['datetime']
+        # get cheapest energy
+        highest = None
+        value = 0.
+        initial_surplus = self.balance[key]
+        while self.network_can_store_energy(key) and self.balance[key] > 0:
+            for node in self.connected_domains():
+                if node.needsenergy(record) and node.buy_key > value:
+                    highest = node
+                    value = node.sell_kwh()
+            delta = max(self.balance[key],highest.needsenergy(record))
+            node.power_io(delta, record)
+            self.balance[key] -= delta
+            highest.credits += delta
+            self.debits -= delta
+            # reset auction
+
+        # account for shortage
+        if self.balance[key] != 0.:
+            self.surplus += self.balance[key]
+
+    def connected_domains(self):
+        # isdomain = lambda x: (type(x) is Domain) and (x is not self)
+        isdomain = lambda x: (type(x) is Domain)
+        return filter(isdomain, self.network)
+
+    def select_domain(self,obj_id):
+        for node in self.network:
+            if id(node) == obj_id:
+                for neighbor in node.network.neighbors(node):
+                    # should only be in one Domain
+                    # should only have one neighbor
+                    if type(neighbor) is Domain:
+                        return neighbor
+        raise KeyError('%s not found' % obj_id)
+
+    def select_node(self,obj_id):
+        for node in self.network:
+            if id(node) == obj_id:
+                return node
+        raise KeyError('%s not found' % obj_id)
+
     def calc(self, record, hours=1.0):
         """Calculate energy for data record.
 
@@ -365,62 +499,66 @@ class Domain(Device):
 
         """
         self.hours.append(hours)
-        # print record['datetime']
         key = record['datetime']
-        # self.time_series.append(key)
+
+        logger.debug('Start processsing %s' , key)
+        #init 
+        for node in self.connected_domains():
+            node.timestep = hours
+            node.time_series.append(key)
+            node.credits[key] = 0.
+            node.demand[key] = 0.
+            node.debits[key] = 0.
+            node.balance[key] = 0.
 
         # total non-droopable energy demand
 
-        for node in self.graph():
-            if type(node) == Domain:
-                node_dmnd = node.needsenergy(record) * (1. - node.droopable(record))
-                node.demand[key] = node.demand.setdefault(key, 0) + node_dmnd
-                # print id(node), node.demand[key], node.needsenergy(record), node.droopable(record), node_dmnd
-                # init
-                node.time_series.append(key)
-                node.credits[key] = 0.
-                node.debits[key] = 0.
-                node.balance[key] = 0.
-
-        demand = self.demand[key]
-
-            # if child.classification == 'load':
-                # demand += child(record['datetime'])
+        for node in self.connected_domains():
+            node_dmnd = node.needsenergy(record) * (1. - node.droopable(record))
+            node.demand[key] = node.demand.setdefault(key, 0) + node_dmnd
 
         # total energy with curtailment penalties
-        source = 0
-        for node in self.graph():
-            if type(node) == Domain:
-                node.balance[key] += node.hasenergy(record) * node.curtailment_ratio(record)
+        for node in self.connected_domains():
+            node.source[key] = node.hasenergy(record) * node.curtailment_ratio(record)
 
-        for child in self.children:
-            if hasattr(child, 'hasenergy'):
-                source += child.hasenergy(record) * child.curtailment_ratio(record)
-        #print source, self.balance[key]
-            # if child.classification == 'source':
-            #    source += child(record)
+        for node in self.connected_domains():
+            # demands are always negative
+            node.balance[key] = node.source[key] + node.demand[key]
 
-        self.g.append(source)
-        self.l.append(demand)
+        # rebalance power neglecting transmission costs/constraints
+        # find demand with highest priority
+        bid = high_bid(self.network, record)
+        offer = low_offer(self.network, record)
+        print bid, offer
+        # while self.network_needs_energy(key) and self.network_has_energy(key):
+        while bid and offer:
+            logger.debug('highest priority energy: %s', bid)
+            dest = self.select_domain(bid.obj_id)
+            logger.debug('Transfering control to %s' , dest)
+            dest.get_energy(record, bid)
+            bid = high_bid(self.network, record)
+            offer = low_offer(self.network, record)
 
-        delta = source - demand
-        # reconcile energy shortages
+        # distribute excess energy
+        #while self.network_has_energy(key) and self.network_can_store_energy(key):
+        #    bid = high_bid
+        #            node.send_energy(record)
 
-        net = self.power_io(delta, record)
-        #self.reconcile(record)
-        return net
+        # reconcile shortages/surpluses 
+        self.reconcile(record)
+        # return net
 
     def needsenergy(self, record):
         e = 0
         for i in self.children:
-            if hasattr(i, 'needsenergy'):
+            if hasattr(i, 'needsenergy') and type(i) is not Domain:
                 e += i.needsenergy(record)
         return e
 
     def hasenergy(self, record):
         e = 0
         for i in self.children:
-            if hasattr(i, 'hasenergy'):
+            if hasattr(i, 'hasenergy') and type(i) is not Domain:
                 e += i.hasenergy(record)
         return e
 
@@ -429,7 +567,7 @@ class Domain(Device):
         e = 0.
         d = 0.
         for i in self.children:
-            if hasattr(i, 'needsenergy'):
+            if hasattr(i, 'needsenergy') and type(i) is not Domain:
                 ce = i.needsenergy(record)
                 cd = i.droopable(record)
                 d += ce*cd
@@ -447,7 +585,7 @@ class Domain(Device):
         c = 0.
         # return 0.
         for i in self.children:
-            if hasattr(i, 'hasenergy'):
+            if hasattr(i, 'hasenergy') and type(i) is not Domain:
                 ce = i.hasenergy(record)
                 cc = i.curtailment_ratio(record)
                 c += ce*cc
@@ -463,7 +601,14 @@ class Domain(Device):
         m_v = 0
         for i in self.children:
             if hasattr(i, 'buy_kwh'):
-                m_v = max(m_v, i.buy_kwh())
+                m_v = min(m_v, i.buy_kwh())
+        return m_v
+
+    def sell_kwh(self):
+        m_v = 0
+        for i in self.children:
+            if hasattr(i, 'sell_kwh'):
+                m_v = max(m_v, i.sell_kwh())
         return m_v
 
     def depletion(self):
@@ -475,7 +620,7 @@ class Domain(Device):
     __call__ = calc
 
     def __repr__(self):
-        return 'Domain %s Outages' % self.outages # significant(self.cost())
+        return 'Domain %s, %s Outages' % (self.small_id, self.outages) # significant(self.cost())
 
 
 if __name__ == '__main__':

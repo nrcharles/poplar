@@ -94,27 +94,19 @@ class IdealStorage(Device):
         """
         return self.nominal_capacity - self.state
 
-    def bids(self, record):
-        """Energy bid for record.
+    capacity_availible = needsenergy
 
-        Note: record is currently not used.
-
-        Returns:
-            (list) of bids.
-
-        """
-        return [Bid(self.needsenergy(record), self.buy_kwh())]
-
-    def offers(self, record):
-        """Energy offer for record.
-
-        Note: record is currently not used.
+    def offer(self, record):
+        """Energy offer.
 
         Returns:
-            (list) of bids.
+            (Offer)
 
         """
-        return [Offer(self.hasenergy(), self.sell_kwh())]
+        return Offer(id(self), self.hasenergy(record), self.sell_kwh())
+
+    def bid(self, record):
+        return Bid(id(self), self.needsenergy(record), self.buy_kwh())
 
     def droopable(self, record):
         return 1.
@@ -125,7 +117,8 @@ class IdealStorage(Device):
 
     def buy_kwh(self):
         """Value of storing energy."""
-        return self.chem.cost_kwh
+        # no value to store
+        return 0. #self.chem.cost_kwh
 
     def depletion(self):
         """Battery depletion expense.
