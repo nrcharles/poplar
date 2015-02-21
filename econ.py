@@ -19,6 +19,7 @@ class Bid(object):
         self.obj_id = obj_id
         self.value = value
         self.wh = wh
+        self.storage = False
 
     def __repr__(self):
         return '%s %s wh %s' % (self.obj_id, self.wh, self.value)
@@ -29,28 +30,37 @@ class Offer(object):
         self.obj_id = obj_id
         self.value = value
         self.wh = wh
+        self.storage = False
 
     def __repr__(self):
         return '%s %s wh %s' % (self.obj_id, self.wh, self.value)
 
-def high_bid(nodes, record):
+def high_bid(nodes, record, offer=None):
+    if offer == None:
+        offer = Offer(0,0,0)
     high_bid = None
     bid_value = 0.
     for node in nodes:
         if hasattr(node, 'bid'):
             bid = node.bid(record)
             # print node, bid
-            if bid.wh != 0. and bid.value > bid_value:
+            if bid.wh != 0. and bid.value > bid_value \
+                    and bid.obj_id != offer.obj_id: # \
+                # and not (bid.storage and offer.storage):
                 high_bid = bid
     return high_bid
 
-def low_offer(nodes, record):
+def low_offer(nodes, record, bid=None):
+    if bid == None:
+        bid = Bid(0,0,0)
     low_offer = None
     offer_value = 100.
     for node in nodes:
         if hasattr(node, 'offer'):
             offer = node.offer(record)
-            if offer.wh !=0. and offer.value < offer_value:
+            if offer.wh !=0. and offer.value < offer_value \
+                    and offer.obj_id != bid.obj_id: # \
+               #  and not (bid.storage and offer.storage):
                 low_offer = offer
     return low_offer
 

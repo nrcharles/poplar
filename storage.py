@@ -103,10 +103,14 @@ class IdealStorage(Device):
             (Offer)
 
         """
-        return Offer(id(self), self.hasenergy(record), self.sell_kwh())
+        o = Offer(id(self), self.hasenergy(record), self.sell_kwh())
+        o.storage = True
+        return o
 
     def bid(self, record):
-        return Bid(id(self), self.needsenergy(record), self.buy_kwh())
+        b = Bid(id(self), self.needsenergy(record), self.buy_kwh())
+        b.storage = True
+        return b
 
     def droopable(self, record):
         return 1.
@@ -118,7 +122,7 @@ class IdealStorage(Device):
     def buy_kwh(self):
         """Value of storing energy."""
         # no value to store
-        return 0. #self.chem.cost_kwh
+        return 0.00001 #self.chem.cost_kwh
 
     def depletion(self):
         """Battery depletion expense.

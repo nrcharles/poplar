@@ -167,6 +167,7 @@ TV_L = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -20, -20, -20,
         -20, 0, 0]
 TV_H = range(25)
 TV = DailyLoad(TV_H, TV_L, kind='linear', name='12" B&W TV')
+TV.per_kwh = .08
 
 FLAT = DailyLoad([0,25],[8.15, 8.15], kind='linear', name ='Flat')
 
@@ -207,3 +208,4 @@ if __name__ == '__main__':
     print BD_AVE(datetime.datetime.now())
     print BD(datetime.datetime.now())
     print TV(datetime.datetime(2012,12,15,20))
+    print TV.bid(REC)

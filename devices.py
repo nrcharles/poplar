@@ -157,27 +157,6 @@ class Domain(Device):
         self.lolh = 0.
         self.r = 1.
         self.network = self.graph()
-        #for node in self.connected_domains():
-        #    node.network = self.network
-
-    def network_has_energy(self, key):
-        for node in self.connected_domains():
-            if node.balance[key] > 0:
-                return True
-        return False
-
-    def network_needs_energy(self, key):
-        for node in self.connected_domains():
-            if node.balance[key] < 0:
-                return True
-        return False
-
-    def network_can_store_energy(self, key):
-        for node in self.network:
-            if hasattr(node, 'capacity_availible'):
-                if node.capacity_availible(key):
-                    return True
-        return False
 
     def autonomy(self):
         """Calculate domain autonomy.
@@ -189,7 +168,7 @@ class Domain(Device):
 
         """
         # g_ave = sum(self.g)/len(self.g)
-        l_median = np.median(self.l)
+        l_median = np.median(self.log_dict_to_list('demand'))
         return self.capacity()/l_median  # hours
 
     def eta(self):
@@ -235,7 +214,7 @@ class Domain(Device):
             'Domain dedits(wh)': significant(sum(self.log_dict_to_list('debits'))),
             'Domain Generation losses (wh)':
             significant(self.parameter('losses')),
-            'Autonomy (hours) (Median Load/C)': significant(self.autonomy()),
+            # 'Autonomy (hours) (Median Load/C)': significant(self.autonomy()),
             # 'Capacity Factor (%)': significant(self.capacity_factor()*100.),
             'Domain surplus (Wh)': significant(self.surplus),
             # 'Domain Generation (Wh)': significant(sum(self.g)),
@@ -263,43 +242,6 @@ class Domain(Device):
     def weather_series(self, array_like):
         for i in array_like:
             self(i)
-
-    def energy_source(self, record):
-        """Find cheapest energy source.
-
-        hasenergy and sell_kwh makes up an offer.
-
-        Returns:
-            (object): Device or Domain to cover energy shortfall.
-        """
-        min_kwh_c = 10
-        choice = None
-        # select lowest energy source bid
-        for child in self.children:
-            if hasattr(child, 'power_io'):
-                if child.hasenergy(record) and child.sell_kwh() < min_kwh_c:
-                    choice = child
-                    min_kwh_c = child.sell_kwh()
-        return choice
-
-    def energy_sink(self, record):
-        """Find most expensive energy sink.
-
-        needsenergy and buy_kwh makes up a bid
-
-        Returns:
-            (object): Device or Domain for energy transfer
-        """
-        # prioritize energy storage
-        min_kwh_c = 0
-        choice = None
-        # Select highest bid for energy value
-        for child in self.children:
-            if hasattr(child, 'power_io'):
-                if child.needsenergy(record) and child.buy_kwh() > min_kwh_c:
-                    choice = child
-                    min_kwh_c = child.buy_kwh()
-        return choice
 
     def reconcile(self, record):
         key = record['datetime']
@@ -414,7 +356,8 @@ class Domain(Device):
         # subtracting from source ,adding to self
         # -7.17085342045 14.4358005547
         # -21.6066539751 28.8716011093
-        logger.info('Transfered %s wH from %s toward %s wH in %s',delta, source, bid.wh, dest)
+        logger.info('%s: Transfered %s wH from %s toward %s wH in %s',
+                    key, delta, source, bid.wh, dest)
         return True
 
     def get_energy(self, record, bid):
@@ -423,16 +366,15 @@ class Domain(Device):
         initial_demand = self.demand[key]
         node = self.select_node(bid.obj_id)
         logger.debug("New auction %s for %s wH" , key, initial_demand)
-        offer = low_offer(self.network, record)
-        # print node, self.network_has_energy(key), node.needsenergy(record)
-        # print offer
+        offer = low_offer(self.network, record, bid)
         while offer and node.needsenergy(record):
             logger.debug('High bid %s' , bid)
-            # get offers
+            logger.debug('Low Offer %s' , offer)
             self.transaction(offer, bid, record)
-            offer = low_offer(self.network, record)
+            offer = low_offer(self.network, record, bid)
+
         # account for shortage
-        if self.balance[key] != 0.:
+        if self.balance[key] != 0. and not bid.storage:
             logger.debug("Shortfall of %s, in %s", self.balance[key], self)
             self.outages += 1
             self.shortfall += self.demand[key]
@@ -440,28 +382,6 @@ class Domain(Device):
                 self.timestep
             return False
         return True
-
-    def send_energy(self, record):
-        key = record['datetime']
-        # get cheapest energy
-        highest = None
-        value = 0.
-        initial_surplus = self.balance[key]
-        while self.network_can_store_energy(key) and self.balance[key] > 0:
-            for node in self.connected_domains():
-                if node.needsenergy(record) and node.buy_key > value:
-                    highest = node
-                    value = node.sell_kwh()
-            delta = max(self.balance[key],highest.needsenergy(record))
-            node.power_io(delta, record)
-            self.balance[key] -= delta
-            highest.credits += delta
-            self.debits -= delta
-            # reset auction
-
-        # account for shortage
-        if self.balance[key] != 0.:
-            self.surplus += self.balance[key]
 
     def connected_domains(self):
         # isdomain = lambda x: (type(x) is Domain) and (x is not self)
@@ -528,19 +448,25 @@ class Domain(Device):
         # rebalance power neglecting transmission costs/constraints
         # find demand with highest priority
         bid = high_bid(self.network, record)
-        offer = low_offer(self.network, record)
-        print bid, offer
-        # while self.network_needs_energy(key) and self.network_has_energy(key):
+        if not bid:
+            logger.info('%s no bids.', key)
+
+        offer = low_offer(self.network, record, bid)
+        if not offer:
+            logger.info('%s no offers.', key)
+
+        # print "are you selling to yourself? "
+        # print "are we transfering energy from battery to battery"?
+        # print bid, offer
         while bid and offer:
             logger.debug('highest priority energy: %s', bid)
             dest = self.select_domain(bid.obj_id)
             logger.debug('Transfering control to %s' , dest)
             dest.get_energy(record, bid)
             bid = high_bid(self.network, record)
-            offer = low_offer(self.network, record)
+            offer = low_offer(self.network, record, bid)
 
         # distribute excess energy
-        #while self.network_has_energy(key) and self.network_can_store_energy(key):
         #    bid = high_bid
         #            node.send_energy(record)
 

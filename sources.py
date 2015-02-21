@@ -30,6 +30,7 @@ class SimplePV(Device):
         imax = 8.
         v_bus = [24, 20, 12]
         self.cost_watt = .8
+        self.stc = W
         for v in v_bus:
             vmp = v*1.35
             imp = W/vmp
@@ -61,9 +62,7 @@ class SimplePV(Device):
 
     def nameplate(self):
         """Nameplate rating at STC conditions."""
-        v, i = self.output(1000., 25.)
-        W = v*i
-        return W
+        return self.stc
 
     def output(self, irr, t_cell):
         """Temperature compensated module output.
@@ -163,6 +162,7 @@ class PVSystem(Source):
         self.gen = True
         self.balance = {}
         self.debits = {}
+        self.total_dc = 0
 
     def curtailment_ratio(self, record):
         """Ratio of energy that has a curtailment penalty."""
@@ -170,10 +170,10 @@ class PVSystem(Source):
 
     def nameplate(self):
         """Sum of STC DC nameplate power."""
-        total_dc = 0
-        for i in self.children:
-            total_dc += i.nameplate()
-        return total_dc
+        if not self.total_dc:
+            for i in self.children:
+                self.total_dc += i.nameplate()
+        return self.total_dc
 
     def sell_kwh(self):
         # PV has curtailment penalty for unused energy
@@ -202,11 +202,14 @@ class PVSystem(Source):
             t(dict): weather data record
         """
         try:
-            irr = irradiation.irradiation(t, self.place, t=self.tilt,
-                                          array_azimuth=self.azimuth,
-                                          model='p9')
-            t_cell = module_temp(irr, t)
-            return self.output(irr, t_cell)
+            key = t['datetime']
+            if not key in self.balance:
+                irr = irradiation.irradiation(t, self.place, t=self.tilt,
+                                            array_azimuth=self.azimuth,
+                                            model='p9')
+                t_cell = module_temp(irr, t)
+                self.balance[key] = self.output(irr, t_cell)
+            return self.balance[key]
         except Exception as e:
             print(e)
             return 0
@@ -214,9 +217,11 @@ class PVSystem(Source):
     __call__ = energy
 
     def hasenergy(self, record):
-        key = record['datetime']
-        self.balance[key] = self.balance.setdefault(key,  self.energy(record))
-        return self.balance[key]
+        #key = record['datetime']
+        #if not key in self.balance:
+        #self.balance[key] = self.balance.setdefault(key,  self.energy(record))
+        # return self.balance[key]
+        return self.energy(record)
 
     def needsenergy(self, record):
         # stupid
