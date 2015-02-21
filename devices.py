@@ -251,92 +251,6 @@ class Domain(Device):
                 if self.balance[key]:
                     pass
 
-
-    def power_io(self, energy, record):
-        """Bank energy."""
-        net = 0
-        # demand = self.l[-1]  # may be wrong
-        key = record['datetime']
-        if energy >= 0:
-            self.credits[key] = self.credits.setdefault(key, 0) + energy
-        if energy < 0:
-            self.debits[key] = self.debits.setdefault(key, 0) + energy
-        self.balance[key] = self.balance.setdefault(key, 0) + energy
-        #demand = self.needsenergy(record) * (1 - self.droopable(record))
-        demand = self.demand[key]
-
-        if energy >= 0:
-            net = self.deposit(energy, record)
-        if energy < 0:
-            net = self.withdraw(energy, record)
-
-        if net > 0:  # net > 0 is surplus energy
-            self.surplus += net
-
-        if net < 0:  # net < 0 is energy shortfall
-            self.shortfall -= net
-            self.outages += 1
-            self.lolh += net / - demand
-
-        self.d.append(net)
-        self.net_l.append(min(demand + net, demand))
-
-        energy_stored = 0.
-        nominal_capacity = 0.
-        for child in self.children:
-            if hasattr(child, 'state'):
-                energy_stored += child.state
-            if hasattr(child, 'nominal_capacity'):
-                nominal_capacity += child.nominal_capacity
-
-        if nominal_capacity == 0.:
-            self.state_series.append(energy_stored)
-        else:
-            state = energy_stored/nominal_capacity
-            self.state_series.append(state)
-
-        return net
-
-    def deposit(self, energy, record):
-        """Store surplus energy in a domain.
-
-        Args:
-            energy_surplus: (float) positive in (wH)
-
-        Returns:
-            (float): (wH) surplus that couldn't be transferred.
-        """
-        # energy is surplus (positive)
-        storage = self.energy_sink(record)
-        while storage and energy > 0:
-            a = storage.needsenergy(record)
-            delta = min(a, energy)
-            storage.power_io(delta, record)
-            energy -= delta
-            storage = self.energy_sink(record)
-
-        return energy
-
-    def withdraw(self, energy, record):
-        """Withdraw energy from a domain to cover a shortfall.
-
-        Args:
-            energy_shortfall(float): negative, energy (wH) needed.
-
-        Returns:
-            (float): wH shortfall that couldn't be covered.
-        """
-        # energy is shortfall (negative)
-        source = self.energy_source(record)
-        while source and energy < 0:
-            a = source.hasenergy(record)
-            delta = min(a, abs(energy))
-            source.power_io(-delta, record)
-            energy += delta
-            source = self.energy_source(record)
-
-        return energy
-
     def transaction(self, offer, bid, record):
         # transer energy from destination bid to source offer
         key = record['datetime']
@@ -521,21 +435,6 @@ class Domain(Device):
             return c/e
         else:
             return 0.
-
-    def buy_kwh(self):
-        # return 0.07
-        m_v = 0
-        for i in self.children:
-            if hasattr(i, 'buy_kwh'):
-                m_v = min(m_v, i.buy_kwh())
-        return m_v
-
-    def sell_kwh(self):
-        m_v = 0
-        for i in self.children:
-            if hasattr(i, 'sell_kwh'):
-                m_v = max(m_v, i.sell_kwh())
-        return m_v
 
     def depletion(self):
         return self.parameter('depletion')
