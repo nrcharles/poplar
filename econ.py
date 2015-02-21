@@ -2,6 +2,8 @@ from __future__ import division
 from misc import significant
 import math
 import matplotlib.pyplot as plt
+import logging
+logger = logging.getLogger(__name__)
 
 # Volume Discount constant
 VOLUME_CONSTANT = -0.8
@@ -43,11 +45,14 @@ def high_bid(nodes, record, offer=None):
     for node in nodes:
         if hasattr(node, 'bid'):
             bid = node.bid(record)
-            # print node, bid
-            if bid.wh != 0. and bid.value > bid_value \
-                    and bid.obj_id != offer.obj_id: # \
-                # and not (bid.storage and offer.storage):
-                high_bid = bid
+            if bid:
+                logger.debug('bid %s',bid)
+                if (bid.value > bid_value) \
+                    and (bid.obj_id != offer.obj_id) \
+                    and not (bid.storage and offer.storage):
+                    logger.debug('new high_bid %s',bid)
+                    bid_value = bid.value
+                    high_bid = bid
     return high_bid
 
 def low_offer(nodes, record, bid=None):
@@ -58,10 +63,13 @@ def low_offer(nodes, record, bid=None):
     for node in nodes:
         if hasattr(node, 'offer'):
             offer = node.offer(record)
-            if offer.wh !=0. and offer.value < offer_value \
-                    and offer.obj_id != bid.obj_id: # \
-               #  and not (bid.storage and offer.storage):
-                low_offer = offer
+            if offer:
+                logger.debug('offer %s', offer)
+                if (offer.value < offer_value) \
+                    and (offer.obj_id != bid.obj_id) \
+                    and not (bid.storage and offer.storage):
+                    low_offer = offer
+                    offer_value = offer.value
     return low_offer
 
 def gini(list_of_values):
