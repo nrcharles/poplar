@@ -1,4 +1,6 @@
+"""Environmental Variables."""
 weather = {}
+time_series = []
 time = None
 
 def set_weather(iterable):
@@ -7,4 +9,5 @@ def set_weather(iterable):
 
 def update_time(dt):
     global time
+    time_series.append(dt)
     time = dt
