@@ -285,14 +285,14 @@ class Domain(Device):
         logger.debug("New auction %s for %s wH", key, initial_demand)
         offer = low_offer(self.network, bid)
         while offer and node.needsenergy():
-            logger.debug('High bid %s', bid)
-            logger.debug('Low Offer %s', offer)
+            logger.debug('High bid %s, Low Offer %s', bid, offer)
             self.transaction(offer, bid)
             offer = None
             offer = low_offer(self.network, bid)
 
         # account for shortage
-        if self.balance[key] != 0. and not bid.storage:
+        if node.needsenergy() != 0. and not bid.storage:
+            print self.balance[key], bid.storage
             logger.debug("Shortfall of %s, in %s", self.balance[key], self)
             self.outages += 1
             self.shortfall += self.demand[key]
