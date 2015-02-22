@@ -1,6 +1,7 @@
 import numpy as np
 import environment as env
 from misc import significant
+from visuals import report as stor_rep
 
 from devices import Device
 from econ import Bid, Offer
@@ -58,11 +59,24 @@ class IdealStorage(Device):
         self.full_hours = 0.
         self.shortfall = 0.
         self.state_series = []
+        self.state_dict = {}
         self.hours = []
         self.timeseries = []  # todo: not currently used, needed for interp?
         self.loss_occurence = 0
         self.c_in = []
         self.c_out = []
+
+    def report(self):
+        return stor_rep(self, str(self))
+
+    def soc_log(self):
+        last = self.capacity
+        t = []
+        for i in env.time_series:
+            s = self.state_dict.setdefault(i,last)
+            last = s
+            t.append(s)
+        return t
 
     def tox(self):
         return self.weight()*self.chem.tox_kg
@@ -198,8 +212,9 @@ class IdealStorage(Device):
             if self.state == self.nominal_capacity:
                 self.full_hours += hours
             e_delta = 0
-
-        self.state_series.append(self.soc())
+        t_soc = self.soc()
+        self.state_series.append(t_soc)
+        self.state_dict[env.time] = t_soc
         return e_delta - energy
 
     def autonomy(self):
