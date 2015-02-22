@@ -4,6 +4,7 @@ This Module contains various loads that can be used to acess system
 configurations.
 
 """
+import environment as env
 import csv
 import datetime
 import numpy as np
@@ -47,16 +48,23 @@ def load(filename=None):
 
 
 class Load(Device):
-    def bid(self, record):
-        return Bid(id(self), self.needsenergy(record), self.buy_kwh())
+    def bid(self):
+        e = self.needsenergy()
+        if e:
+            return Bid(id(self), e, self.buy_kwh())
+        else:
+            return None
 
-    def needsenergy(self, record):
-        key = record['datetime']
-        return self.balance.setdefault(key, self.demand(key))
+    def needsenergy(self):
+        key = env.time
+        if not key in self.balance:
+            self.balance[key] = self.demand(key)
+        return self.balance[key]
 
-    def power_io(self, energy, record):
-        key = record['datetime']
+    def power_io(self, energy):
+        key = env.time
         self.balance[key] += energy
+        return self.balance[key]
 
     def buy_kwh(self):
         return self.value_kwh()
@@ -64,7 +72,7 @@ class Load(Device):
     def value_kwh(self):
         return self.per_kwh
 
-    def droopable(self, record):
+    def droopable(self):
         return 0.
 
 
@@ -95,6 +103,7 @@ class Annual(Load):
         self.data = load()
         self.small_id = SMALL_ID.next(type(self))
         self.balance = {}
+        self.detail = None
 
     def demand(self, dt):
         """ Demand at time.
@@ -134,7 +143,9 @@ class Annual(Load):
         return sum(self(hour_to_dt(i)) for i in range(365*24))
 
     def __repr__(self):
-        return '%s kWh Annual' % round(self.total()/1000., 1)
+        if not self.detail:
+            self.detail = '%s kWh Annual' % round(self.total()/1000., 1)
+        return self.detail
 
 
 class DailyLoad(Load):

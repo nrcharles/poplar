@@ -1,4 +1,5 @@
 import numpy as np
+import environment as env
 from misc import significant
 
 from devices import Device
@@ -80,39 +81,43 @@ class IdealStorage(Device):
     def capacity(self):
         return self.nominal_capacity
 
-    def curtailment_ratio(self, record):
+    def curtailment_ratio(self):
         """Ratio of energy that has a curtailment penalty."""
         return 0.
 
-    def hasenergy(self, record):
+    def hasenergy(self):
         """Determine if a device has energy.
         """
         return self.state
 
-    def needsenergy(self, record):
+    def needsenergy(self):
         """Determine if device needs energy.
         """
-        return self.nominal_capacity - self.state
+        return self.state - self.nominal_capacity
 
     capacity_availible = needsenergy
 
-    def offer(self, record):
+    def offer(self):
         """Energy offer.
 
         Returns:
             (Offer)
 
         """
-        o = Offer(id(self), self.hasenergy(record), self.sell_kwh())
+        o = Offer(id(self), self.hasenergy(), self.sell_kwh())
         o.storage = True
         return o
 
-    def bid(self, record):
-        b = Bid(id(self), self.needsenergy(record), self.buy_kwh())
-        b.storage = True
-        return b
+    def bid(self):
+        e = self.needsenergy()
+        if e:
+            b = Bid(id(self), e, self.buy_kwh())
+            b.storage = True
+            return b
+        else:
+            return None
 
-    def droopable(self, record):
+    def droopable(self):
         return 1.
 
     def sell_kwh(self):
@@ -137,7 +142,7 @@ class IdealStorage(Device):
         prospective = self.throughput/1000.*self.chem.cost_kwh
         return prospective
 
-    def power_io(self, power, record=None, hours=1.):
+    def power_io(self, power, hours=1.):
         """Power input/output
 
         >>> s = IdealStorage(100)

@@ -1,11 +1,57 @@
-from devices import Device
+import environment as env
+from devices import Device, Seed
 from solpy import irradiation
 from misc import significant, module_temp
 from econ import Offer
 
 class Source(Device):
-    def offer(self, record):
-        return Offer(id(self), self.hasenergy(record), self.sell_kwh())
+    def offer(self):
+        e = self.hasenergy()
+        if e:
+            return Offer(id(self), e, self.sell_kwh())
+        else:
+            return None
+
+    def curtailment_ratio(self):
+        """Ratio of energy that has a curtailment penalty."""
+        return 1.0
+
+    def energy(self):
+        if not env.time in self.balance:
+            self.balance[env.time] = self.output()
+        return self.balance[env.time]
+
+
+    def sell_kwh(self):
+        # PV has curtailment penalty for unused energy
+        return 0.
+
+    def hasenergy(self):
+        #key = record['datetime']
+        #if not key in self.balance:
+        #self.balance[key] = self.balance.setdefault(key,  self.energy(record))
+        # return self.balance[key]
+        return self.energy()
+
+    def needsenergy(self):
+        # stupid
+        return 0.
+
+    def droopable(self):
+        # stupid
+        return 0.
+
+    def buyenergy(self):
+        # stupid 
+        return 0.
+
+    def power_io(self, energy):
+        key = env.time
+        if abs(energy) > self.balance[key]:
+            raise Exception('PV over commited')
+        self.balance[key] += energy
+        self.debits[key] = self.debits.setdefault(key, 0) + energy
+        return 0.
 
 class SimplePV(Device):
 
@@ -21,7 +67,7 @@ class SimplePV(Device):
 
     """
 
-    def __init__(self, W):
+    def __init__(self, W, irr_object):
         """Create a generic PV module typical of a module in that power class.
 
         Args:
@@ -31,6 +77,8 @@ class SimplePV(Device):
         v_bus = [24, 20, 12]
         self.cost_watt = .8
         self.stc = W
+        self.irr_object = irr_object
+        self.children = [self.irr_object]
         for v in v_bus:
             vmp = v*1.35
             imp = W/vmp
@@ -64,7 +112,7 @@ class SimplePV(Device):
         """Nameplate rating at STC conditions."""
         return self.stc
 
-    def output(self, irr, t_cell):
+    def output(self):
         """Temperature compensated module output.
 
         Note: this is a heuristic method.
@@ -106,6 +154,10 @@ class SimplePV(Device):
         Returns:
             vmp, imp: (tuple) of voltage and current.
         """
+        key = env.time
+        irr = self.irr_object()
+        t_cell = module_temp(irr, env.weather[key])
+
         vmp = self.vmp + (t_cell - 25.) * self.tc_vmp
 
         return vmp, self.imp * irr / 1000.
@@ -117,134 +169,100 @@ class SimplePV(Device):
         """
         return self.nameplate() * .3  # todo: placeholder value
 
-    __call__ = output
-
-    def __repr__(self):
-        v, i = self(1000., 25.)
-        W = v*i
-        return '%s W PV' % significant(W)
-
-
-class PVSystem(Source):
-
-    """
-    PV System/Plant.
-
-    Attributes:
-        place: (tuple): lat,lon geolocation.
-        tilt: (float) degrees array tilt.
-        azimuth: (float) degrees array azimuth.
-        shape: (list) of energy source objects
-        life: (int) years expected life of system
-
-    """
-
-    def __init__(self, children, place, tilt, azimuth):
-        """Should have at least one child.
-
-        Args:
-            children(list): list of power conversion devices.
-            place(tuple): lat, lon geolocation.
-            tilt(float): array tilt in degrees.
-            azimuth(degrees): array azimuth in degrees.
-
-        """
-        self.place = place
-        self.classification = "source"
-        self.dispactachable = False
-        self.tilt = tilt
-        self.azimuth = azimuth
-        self.children = children
-        self.device_cost = 0.
-        self.device_co2 = 0.
-        self.device_tox = 0.
-        self.life = 20.
-        self.gen = True
-        self.balance = {}
-        self.debits = {}
-        self.total_dc = 0
-
-    def curtailment_ratio(self, record):
-        """Ratio of energy that has a curtailment penalty."""
-        return 1.0
-
-    def nameplate(self):
-        """Sum of STC DC nameplate power."""
-        if not self.total_dc:
-            for i in self.children:
-                self.total_dc += i.nameplate()
-        return self.total_dc
-
-    def sell_kwh(self):
-        # PV has curtailment penalty for unused energy
-        return 0.
-
-    def output(self, irr, t_cell):
-        """Sum of energy output."""
-        return sum([i.output(irr, t_cell) for i in self.children])
-
     def depletion(self):
         """1 year depletion."""
         return self.cost()/self.life
 
-    def losses(self):
-        """Sum total losses."""
-        return sum([i.losses() for i in self.children])
+    __call__ = output
 
-    def tox(self):
-        """Sum total Toxicity."""
-        return sum([i.tox() for i in self.children])
+    def __repr__(self):
+        return '%s W PV' % significant(self.stc)
 
-    def energy(self, t):
+
+class Site(Seed):
+
+    """
+
+    Attributes:
+        place: (tuple): lat,lon geolocation.
+
+    """
+
+    def __init__(self, place):
+        """Should have at least one child.
+
+        Note that shading is not currently implimented, but this would
+        where the code should probably go.
+
+        Args:
+            place (tuple): lat, lon geolocation.
+
+        """
+        self.place = place
+        self.shading = None
+
+    def output(self):
+        return env.weather[env.time]
+
+    __call__ = output
+
+    def __repr__(self):
+        return 'Site %s, %s' % (significant(self.place[0]),
+                                 significant(self.place[1]))
+
+
+
+class InclinedPlane(Device):
+
+    """
+
+    Attributes:
+        tilt: (float) degrees array tilt.
+        azimuth: (float) degrees array azimuth.
+        solar_resource: (object)
+
+    """
+
+    def __init__(self, site, tilt, azimuth):
+        """Should have at least one child.
+
+        Args:
+            weather: (object)
+            tilt: (float) degrees array tilt.
+            azimuth: (float) degrees array azimuth.
+
+        """
+        self.site = site
+        self.tilt = tilt
+        self.azimuth = azimuth
+        self.children = [self.site]
+        self.irr = {}
+
+    def energy(self):
         """Calculate total energy for a time period.
 
         Args:
-            t(dict): weather data record
+            key (dict value):
         """
+
         try:
-            key = t['datetime']
-            if not key in self.balance:
-                irr = irradiation.irradiation(t, self.place, t=self.tilt,
-                                            array_azimuth=self.azimuth,
-                                            model='p9')
-                t_cell = module_temp(irr, t)
-                self.balance[key] = self.output(irr, t_cell)
-            return self.balance[key]
+            key = env.time
+            if not key in self.irr:
+                irr = irradiation.irradiation(self.site(),
+                                              self.site.place,
+                                              t=self.tilt,
+                                              array_azimuth=self.azimuth,
+                                              model='p9')
+                self.irr[key] = irr
+            return self.irr[key]
         except Exception as e:
             print(e)
             return 0
 
     __call__ = energy
 
-    def hasenergy(self, record):
-        #key = record['datetime']
-        #if not key in self.balance:
-        #self.balance[key] = self.balance.setdefault(key,  self.energy(record))
-        # return self.balance[key]
-        return self.energy(record)
-
-    def needsenergy(self, record):
-        # stupid
-        return 0.
-
-    def droopable(self, record):
-        # stupid
-        return 0.
-
-    def buyenergy(self, record):
-        # stupid 
-        return 0.
-
-    def power_io(self, energy, record):
-        key = record['datetime']
-        if abs(energy) > self.balance[key]:
-            raise Exception('PV over commited')
-        self.balance[key] += energy
-        self.debits[key] = self.debits.setdefault(key, 0) + energy
-        return 0.
-
     def __repr__(self):
-        return 'Plant %s, %s' % (significant(self.tilt),
+        return 'Inclined Plane %s, %s' % (significant(self.tilt),
                                  significant(self.azimuth))
 
 

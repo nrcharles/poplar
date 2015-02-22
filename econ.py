@@ -37,14 +37,14 @@ class Offer(object):
     def __repr__(self):
         return '%s %s wh %s' % (self.obj_id, self.wh, self.value)
 
-def high_bid(nodes, record, offer=None):
+def high_bid(nodes, offer=None):
     if offer == None:
         offer = Offer(0,0,0)
     high_bid = None
     bid_value = 0.
     for node in nodes:
         if hasattr(node, 'bid'):
-            bid = node.bid(record)
+            bid = node.bid()
             if bid:
                 logger.debug('bid %s',bid)
                 if (bid.value > bid_value) \
@@ -55,14 +55,14 @@ def high_bid(nodes, record, offer=None):
                     high_bid = bid
     return high_bid
 
-def low_offer(nodes, record, bid=None):
+def low_offer(nodes, bid=None):
     if bid == None:
         bid = Bid(0,0,0)
     low_offer = None
     offer_value = 100.
     for node in nodes:
         if hasattr(node, 'offer'):
-            offer = node.offer(record)
+            offer = node.offer()
             if offer:
                 logger.debug('offer %s', offer)
                 if (offer.value < offer_value) \

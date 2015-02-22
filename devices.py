@@ -1,5 +1,6 @@
 import numpy as np
 import networkx as nx
+import environment as env
 from misc import significant, Counter
 from econ import high_bid, low_offer
 
@@ -8,7 +9,35 @@ logger = logging.getLogger(__name__)
 
 SMALL_ID = Counter()
 
-class Device(object):
+
+class Seed(object):
+    def graph(self):
+        """Device Graph of all decendants.
+
+        Returns:
+            (Graph)
+        """
+        if hasattr(self, 'children'):
+            for i in self.children:
+                if not hasattr(self, 'network'):
+                    self.network = i.graph()
+                    self.network.add_node(self)
+                    self.network.add_edge(self, i)
+                    print self.network.edges()
+                else:
+                    c = i.graph()
+                    self.network.add_nodes_from(c.nodes())
+                    self.network.add_edges_from(c.edges())
+                    self.network.add_edge(self, i)
+                    i.network = self.network
+        if not hasattr(self, 'network'):
+            self.network = nx.Graph()
+            self.network.add_node(self)
+
+        return self.network
+
+
+class Device(Seed):
 
     """
     Device LCA Object.
@@ -86,33 +115,9 @@ class Device(object):
         """
         return self.parameter('area')
 
-    def graph(self):
-        """Device Graph of all decendant devices.
-
-        Returns:
-            (Graph)
-        """
-        if hasattr(self, 'children'):
-            for i in self.children:
-                if not hasattr(self, 'network'):
-                    self.network = i.graph()
-                    self.network.add_node(self)
-                    self.network.add_edge(self,i)
-                    print self.network.edges()
-                else:
-                    c = i.graph()
-                    self.network.add_nodes_from(c.nodes())
-                    self.network.add_edges_from(c.edges())
-                    self.network.add_edge(self, i)
-                    i.network = self.network
-        if not hasattr(self,'network'):
-            self.network = nx.Graph()
-            self.network.add_node(self)
-
-        return self.network
-
     def __repr__(self):
         return 'Device'
+
 
 class Domain(Device):
 
@@ -243,49 +248,48 @@ class Domain(Device):
         for i in array_like:
             self(i)
 
-    def reconcile(self, record):
-        key = record['datetime']
+    def reconcile(self):
+        key = env.time
         for child in self.children:
             if type(child) == Domain:
-                # print self.balance[key], self.credits[key], self.debits[key], self.balance[key]
+                # print self.balance[key], self.credits[key],
+                # self.debits[key], self.balance[key]
                 if self.balance[key]:
                     pass
 
-    def transaction(self, offer, bid, record):
+    def transaction(self, offer, bid):
         # transer energy from destination bid to source offer
-        key = record['datetime']
-        delta = min(abs(self.balance[key]),offer.wh)
+        key = env.time
         dest = self.select_node(bid.obj_id)
+        delta = min(abs(dest.needsenergy()), offer.wh)
         # add to bid destination
-        dest.power_io(delta, record)
-        #self.demand[key] += delta
+        dest.power_io(delta)
+        # self.demand[key] += delta
         self.balance[key] += delta
         self.credits[key] += delta
         # subtract from offer source
         source = self.select_node(offer.obj_id)
-        source.power_io(-delta, record)
+        source.power_io(-delta )
         source_domain = self.select_domain(offer.obj_id)
         source_domain.debits[key] -= delta
         source_domain.balance[key] -= delta
-        # subtracting from source ,adding to self
-        # -7.17085342045 14.4358005547
-        # -21.6066539751 28.8716011093
         logger.info('%s: Transfered %s wH from %s toward %s wH in %s',
                     key, delta, source, bid.wh, dest)
         return True
 
-    def get_energy(self, record, bid):
+    def get_energy(self, bid):
         # energy auction
-        key = record['datetime']
+        key = env.time
         initial_demand = self.demand[key]
         node = self.select_node(bid.obj_id)
-        logger.debug("New auction %s for %s wH" , key, initial_demand)
-        offer = low_offer(self.network, record, bid)
-        while offer and node.needsenergy(record):
-            logger.debug('High bid %s' , bid)
-            logger.debug('Low Offer %s' , offer)
-            self.transaction(offer, bid, record)
-            offer = low_offer(self.network, record, bid)
+        logger.debug("New auction %s for %s wH", key, initial_demand)
+        offer = low_offer(self.network, bid)
+        while offer and node.needsenergy():
+            logger.debug('High bid %s', bid)
+            logger.debug('Low Offer %s', offer)
+            self.transaction(offer, bid)
+            offer = None
+            offer = low_offer(self.network, bid)
 
         # account for shortage
         if self.balance[key] != 0. and not bid.storage:
@@ -302,7 +306,7 @@ class Domain(Device):
         isdomain = lambda x: (type(x) is Domain)
         return filter(isdomain, self.network)
 
-    def select_domain(self,obj_id):
+    def select_domain(self, obj_id):
         for node in self.network:
             if id(node) == obj_id:
                 for neighbor in node.network.neighbors(node):
@@ -312,31 +316,31 @@ class Domain(Device):
                         return neighbor
         raise KeyError('%s not found' % obj_id)
 
-    def select_node(self,obj_id):
+    def select_node(self, obj_id):
         for node in self.network:
             if id(node) == obj_id:
                 return node
         raise KeyError('%s not found' % obj_id)
 
-    def calc(self, record, hours=1.0):
-        """Calculate energy for data record.
+    def calc(self, hours=1.0):
+        """Calculate energy.
 
         Domains behave like a an energy market, excess energy is are transfered
         to the device with the highest bid and energy shortfalls are covered
         from the device with the lowest offer.
 
         Args:
-            record(dict): record of weather data and time.
+            hours (float):
 
         Returns:
             (float): net energy surplus or shortfall (wH).
 
         """
         self.hours.append(hours)
-        key = record['datetime']
+        key = env.time
 
-        logger.debug('Start processsing %s' , key)
-        #init 
+        logger.debug('Start processsing %s', key)
+        #init
         for node in self.connected_domains():
             node.timestep = hours
             node.time_series.append(key)
@@ -348,12 +352,12 @@ class Domain(Device):
         # total non-droopable energy demand
 
         for node in self.connected_domains():
-            node_dmnd = node.needsenergy(record) * (1. - node.droopable(record))
+            node_dmnd = node.needsenergy() * (1.-node.droopable())
             node.demand[key] = node.demand.setdefault(key, 0) + node_dmnd
 
         # total energy with curtailment penalties
         for node in self.connected_domains():
-            node.source[key] = node.hasenergy(record) * node.curtailment_ratio(record)
+            node.source[key] = node.hasenergy() * node.curtailment_ratio()
 
         for node in self.connected_domains():
             # demands are always negative
@@ -361,55 +365,49 @@ class Domain(Device):
 
         # rebalance power neglecting transmission costs/constraints
         # find demand with highest priority
-        bid = high_bid(self.network, record)
+        bid = high_bid(self.network, )
         if not bid:
             logger.info('%s no bids.', key)
 
-        offer = low_offer(self.network, record, bid)
+        offer = low_offer(self.network, bid)
         if not offer:
             logger.info('%s no offers.', key)
 
-        # print "are you selling to yourself? "
-        # print "are we transfering energy from battery to battery"?
-        # print bid, offer
+        # are you selling to yourself?
+        # are we transfering energy from battery to battery?
+
         while bid and offer:
             logger.debug('highest priority energy: %s', bid)
             dest = self.select_domain(bid.obj_id)
-            logger.debug('Transfering control to %s' , dest)
-            dest.get_energy(record, bid)
-            bid = high_bid(self.network, record)
-            offer = low_offer(self.network, record, bid)
+            logger.debug('Transfering control to %s', dest)
+            dest.get_energy( bid)
+            bid = high_bid(self.network)
+            offer = low_offer(self.network, bid)
 
-        # distribute excess energy
-        #    bid = high_bid
-        #            node.send_energy(record)
+        self.reconcile()
 
-        # reconcile shortages/surpluses 
-        self.reconcile(record)
-        # return net
-
-    def needsenergy(self, record):
+    def needsenergy(self):
         e = 0
         for i in self.children:
             if hasattr(i, 'needsenergy') and type(i) is not Domain:
-                e += i.needsenergy(record)
+                e += i.needsenergy()
         return e
 
-    def hasenergy(self, record):
+    def hasenergy(self):
         e = 0
         for i in self.children:
             if hasattr(i, 'hasenergy') and type(i) is not Domain:
-                e += i.hasenergy(record)
+                e += i.hasenergy()
         return e
 
-    def droopable(self, record):
+    def droopable(self):
         # todo: test this code
         e = 0.
         d = 0.
         for i in self.children:
             if hasattr(i, 'needsenergy') and type(i) is not Domain:
-                ce = i.needsenergy(record)
-                cd = i.droopable(record)
+                ce = i.needsenergy()
+                cd = i.droopable()
                 d += ce*cd
                 e += ce
         # print d,e
@@ -419,15 +417,15 @@ class Domain(Device):
         else:
             return 0.
 
-    def curtailment_ratio(self, record):
+    def curtailment_ratio(self):
         # todo: fix this code
         e = 0.
         c = 0.
         # return 0.
         for i in self.children:
             if hasattr(i, 'hasenergy') and type(i) is not Domain:
-                ce = i.hasenergy(record)
-                cc = i.curtailment_ratio(record)
+                ce = i.hasenergy()
+                cc = i.curtailment_ratio()
                 c += ce*cc
                 e += ce
         if e:
@@ -445,7 +443,8 @@ class Domain(Device):
     __call__ = calc
 
     def __repr__(self):
-        return 'Domain %s, %s Outages' % (self.small_id, self.outages) # significant(self.cost())
+        return 'Domain %s, %s Outages' % (self.small_id, self.outages)
+        # significant(self.cost())
 
 
 if __name__ == '__main__':

@@ -1,8 +1,9 @@
 from misc import significant
 from devices import Device
+from sources import Source
 
 
-class ChargeController(Device):
+class ChargeController(Source):
     """Ideal Charge Controller
 
     Attributes:
@@ -12,7 +13,9 @@ class ChargeController(Device):
 
     """
     def __init__(self, array_like):
+        self.balance = {}
         self.children = array_like
+        self.debits = {}
         self.device_cost = 10.
         self.device_tox = 3.  # todo: placeholder value
         self.device_co2 = 5.  # todo: placeholder value
@@ -23,7 +26,7 @@ class ChargeController(Device):
     def nameplate(self):
         return sum([i.nameplate() for i in self.children])
 
-    def output(self, irr, t_cell):
+    def output(self):
         """Output of Ideal charge controller.
 
         Args:
@@ -38,7 +41,7 @@ class ChargeController(Device):
         """
         w = 0.
         for child in self.children:
-            v, i = child(irr, t_cell)
+            v, i = child()
             w += v * i
         return w
 
@@ -66,14 +69,16 @@ class MPPTChargeController(ChargeController):
             children: (array_like) PV array.
             efficiency: (float) energy conversion efficiency.
         """
-        self.loss = 0.
+        self.balance = {}
         self.children = array_like
-        self.efficiency = efficiency
+        self.debits = {}
         self.device_cost = 10.
         self.device_tox = 3.
         self.device_co2 = 5.
+        self.efficiency = efficiency
+        self.loss = 0.
 
-    def output(self, irr, t_cell):
+    def output(self):
         """Output of MPPT charge controller
 
         Args:
@@ -93,7 +98,7 @@ class MPPTChargeController(ChargeController):
         """
         w = 0.
         for child in self.children:
-            v, i = child(irr, t_cell)
+            v, i = child()
             w += v * i
             self.loss += (1. - self.efficiency) * v * i
         return w * self.efficiency
@@ -121,14 +126,16 @@ class SimpleChargeController(ChargeController):
             children: (array_like) PV array.
             vnom: (float) nominal bus voltage in (Volts) default 12.5.
         """
-        self.loss = 0
+        self.balance = {}
         self.children = children
+        self.debits = {}
+        self.loss = 0
         self.vnom = vnom
         self.device_cost = 7.
         self.device_tox = 3.
         self.device_co2 = 5.
 
-    def output(self, irr, t_cell):
+    def output(self):
         """Output of Simple charge controller.
 
         Args:
@@ -145,7 +152,7 @@ class SimpleChargeController(ChargeController):
         """
         w = 0.
         for child in self.children:
-            v, i = child(irr, t_cell)
+            v, i = child()
             self.loss += (v - self.vnom) * i
             w += self.vnom * i
         return w
