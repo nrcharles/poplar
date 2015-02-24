@@ -43,11 +43,9 @@ class Seed(object):
 
     def gateway(self, obj_id):
         node = self.find_node(obj_id)
-        for neighbor in node.network.neighbors(node):
-            # should only be in one Domain
-            # should only have one neighbor
-            if type(neighbor) is Domain:
-                return neighbor
+        for step in reversed(self.path(node)):
+            if type(step) is Domain:
+                return step
         raise KeyError('%s not found' % obj_id)
 
     def find_node(self, obj_id):
@@ -57,7 +55,7 @@ class Seed(object):
         raise KeyError('%s not found' % obj_id)
 
     def path(self, node):
-        pass
+        return nx.shortest_path(self.network, self, node)
 
 
 class Device(Seed):
