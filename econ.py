@@ -55,14 +55,14 @@ def high_bid(nodes, offer=None):
                     high_bid = bid
     return high_bid
 
-def low_offer(nodes, bid=None):
+def low_offer(nodes, bid):
     if bid == None:
         bid = Bid(0,0,0)
     low_offer = None
     offer_value = 100.
     for node in nodes:
         if hasattr(node, 'offer'):
-            offer = node.offer()
+            offer = node.offer(bid.obj_id)
             # offer = node.offer()
             if offer:
                 logger.debug('offer %s', offer)

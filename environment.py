@@ -14,6 +14,7 @@ SRC_PATH = os.path.dirname(os.path.abspath(__file__))
 weather = {}
 time_series = []
 time = None
+network = None
 
 def set_weather(iterable):
     for i, r in enumerate(iterable):

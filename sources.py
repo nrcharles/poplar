@@ -8,7 +8,7 @@ from econ import Offer
 logger = logging.getLogger(__name__)
 
 class Source(Device):
-    def offer(self):
+    def offer(self, dest_id):
         e = self.hasenergy()
         if e:
             return Offer(id(self), e, self.sell_kwh())

@@ -4,7 +4,7 @@ import networkx as nx
 from misc import significant
 from visuals import report as stor_rep
 
-from devices import Device
+from devices import Device, Domain
 from econ import Bid, Offer
 
 
@@ -67,17 +67,19 @@ class IdealStorage(Device):
         self.c_in = []
         self.c_out = []
         self.buy = 0.00001
+        self.network = self.graph()
 
     def report(self):
         return stor_rep(self, str(self))
 
     def soc_log(self):
-        last = self.nominal_capacity
+        last = 1.0
         t = []
         for i in env.time_series:
-            s = self.state_dict.setdefault(i,last)
-            last = s
-            t.append(s)
+            if i in self.state_dict:
+                s = self.state_dict[i]
+                last = s
+            t.append(last)
         return t
 
     def tox(self):
@@ -113,7 +115,7 @@ class IdealStorage(Device):
 
     capacity_availible = needsenergy
 
-    def offer(self, dest_id=None):
+    def offer(self, dest_id):
         """Energy offer.
 
         Returns:
@@ -121,7 +123,21 @@ class IdealStorage(Device):
 
         """
         # if domain export = false don't offer outside domain
-        # path = nx.shortest_path(self.network, self, dest)
+        # todo: this needs some more nuance
+        if dest_id == id(self):
+            return None
+
+        dest = self.find_node(dest_id)
+        # print self.dest_gateway(dest_id)
+        # print self.network.nodes()
+        # print self.src_gateway(dest_id)
+
+        if self.src_gateway(dest_id) is not self.dest_gateway(dest_id):
+            for step in self.path(dest):
+                if type(step) is Domain:
+                    if not step.export():
+                        return None
+
         v = self.hasenergy()
         if v:
             o = Offer(id(self), v, self.sell_kwh())

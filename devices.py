@@ -18,21 +18,29 @@ class Seed(object):
         Returns:
             (Graph)
         """
+
+        # todo: this code could use some polishing
+
+        if not hasattr(self, 'network'):
+            # find an existing network graph
+            if env.network:
+                self.network = env.network
+                self.network.add_node(self)
+            else:
+                self.network = nx.Graph()
+                self.network.add_node(self)
+                env.network = self.network
+
         if hasattr(self, 'children'):
             for i in self.children:
-                if not hasattr(self, 'network'):
-                    self.network = i.graph()
-                    self.network.add_node(self)
-                    self.network.add_edge(self, i)
-                else:
-                    c = i.graph()
+                c = i.graph()
+                if c != self.network:
                     self.network.add_nodes_from(c.nodes())
                     self.network.add_edges_from(c.edges())
                     self.network.add_edge(self, i)
                     i.network = self.network
-        if not hasattr(self, 'network'):
-            self.network = nx.Graph()
-            self.network.add_node(self)
+                else:
+                    self.network.add_edge(self, i)
 
         return self.network
 
@@ -41,18 +49,41 @@ class Seed(object):
         isdomain = lambda x: (type(x) is Domain)
         return filter(isdomain, self.network)
 
-    def gateway(self, obj_id):
+    def dest_gateway(self, obj_id):
+        """find dest obj_id's input gateway
+
+        Returns:
+            Domain
+        """
+
         node = self.find_node(obj_id)
         for step in reversed(self.path(node)):
             if type(step) is Domain:
                 return step
-        raise KeyError('%s not found' % obj_id)
+        print 'dest', obj_id, 'self', id(self)
+        print self.path(node)
+        raise KeyError('Gateway for %s not found' % obj_id)
+
+    def src_gateway(self, obj_id):
+        """find output gateway from self to dest obj_id
+
+        Returns:
+            Domain
+        """
+        node = self.find_node(obj_id)
+        for step in self.path(node):
+            if type(step) is Domain:
+                return step
+        print obj_id, id(self)
+        print self.path(node)
+        raise KeyError('Gateway for %s not found' % obj_id)
 
     def find_node(self, obj_id):
         for node in self.network:
             if id(node) == obj_id:
                 return node
-        raise KeyError('%s not found' % obj_id)
+        print self.network.nodes()
+        raise KeyError('Node %s not found' % obj_id)
 
     def path(self, node):
         return nx.shortest_path(self.network, self, node)
@@ -183,6 +214,7 @@ class Domain(Device):
         self.lolh = 0.
         self.r = 1.
         self.network = self.graph()
+        self.export_power = True
 
     def autonomy(self):
         """Calculate domain autonomy.
@@ -228,6 +260,11 @@ class Domain(Device):
             return sum(self.net_l)/(self.STC()*24*365)
         else:
             return 0.
+
+    def export(self, state=None):
+        if state is not None:
+            self.export_power = state
+        return self.export_power
 
     def log_dict_to_list(self, log_dict, default=0):
         return [getattr(self, log_dict).setdefault(i,default)
@@ -296,7 +333,7 @@ class Domain(Device):
         # subtract from offer source
         source = self.find_node(offer.obj_id)
         source.power_io(-delta )
-        source_domain = self.gateway(offer.obj_id)
+        source_domain = self.dest_gateway(offer.obj_id)
         source_domain.debits[key] -= delta
         source_domain.balance[key] -= delta
         logger.info('%s: Transfered %s wH from %s toward %s wH in %s',
@@ -378,12 +415,12 @@ class Domain(Device):
 
         while bid:
             logger.debug('highest priority energy: %s', bid)
-            dest = self.gateway(bid.obj_id)
+            dest = self.dest_gateway(bid.obj_id)
             logger.debug('Transfering control to %s', dest)
             dest.get_energy( bid)
             offer = low_offer(self.network, bid)
             if not offer:
-                logger.info('%s no offers.', key)
+                logger.debug('%s no offers.', key)
                 break
             bid = high_bid(self.network)
 
