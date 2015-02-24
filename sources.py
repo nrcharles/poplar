@@ -1,8 +1,11 @@
 import environment as env
+import logging
 from devices import Device, Seed
 from solpy import irradiation
 from misc import significant, module_temp
 from econ import Offer
+
+logger = logging.getLogger(__name__)
 
 class Source(Device):
     def offer(self):
@@ -79,12 +82,18 @@ class SimplePV(Device):
         self.stc = W
         self.irr_object = irr_object
         self.children = [self.irr_object]
+        # this is to handle optimizers putting in stupidly large numbers
+        self.imp = imax
+        self.vmp = W/imax
         for v in v_bus:
             vmp = v*1.35
             imp = W/vmp
             if imp < imax:
                 self.vmp = vmp
                 self.imp = imp
+        if self.vmp > 800.:
+            logger.warning('Module is stupidly large %s W',self.stc)
+
         self.tc_vmp = self.vmp * -0.0044
         self.tc_imp = self.imp * 0.0004
 

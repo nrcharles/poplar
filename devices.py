@@ -3,6 +3,7 @@ import networkx as nx
 import environment as env
 from misc import significant, Counter
 from econ import high_bid, low_offer
+from visuals import multi_report
 
 import logging
 logger = logging.getLogger(__name__)
@@ -23,7 +24,6 @@ class Seed(object):
                     self.network = i.graph()
                     self.network.add_node(self)
                     self.network.add_edge(self, i)
-                    print self.network.edges()
                 else:
                     c = i.graph()
                     self.network.add_nodes_from(c.nodes())
@@ -35,6 +35,29 @@ class Seed(object):
             self.network.add_node(self)
 
         return self.network
+
+    def connected_domains(self):
+        # isdomain = lambda x: (type(x) is Domain) and (x is not self)
+        isdomain = lambda x: (type(x) is Domain)
+        return filter(isdomain, self.network)
+
+    def gateway(self, obj_id):
+        node = self.find_node(obj_id)
+        for neighbor in node.network.neighbors(node):
+            # should only be in one Domain
+            # should only have one neighbor
+            if type(neighbor) is Domain:
+                return neighbor
+        raise KeyError('%s not found' % obj_id)
+
+    def find_node(self, obj_id):
+        for node in self.network:
+            if id(node) == obj_id:
+                return node
+        raise KeyError('%s not found' % obj_id)
+
+    def path(self, node):
+        pass
 
 
 class Device(Seed):
@@ -176,6 +199,9 @@ class Domain(Device):
         l_median = np.median(self.log_dict_to_list('demand'))
         return self.capacity()/l_median  # hours
 
+    def report(self):
+        return multi_report(self, str(self))
+
     def eta(self):
         """Calculate domain efficiency.
 
@@ -260,17 +286,19 @@ class Domain(Device):
     def transaction(self, offer, bid):
         # transer energy from destination bid to source offer
         key = env.time
-        dest = self.select_node(bid.obj_id)
+        dest = self.find_node(bid.obj_id)
         delta = min(abs(dest.needsenergy()), offer.wh)
+        if delta == 0.:
+            logger.error('Transaction for 0, offer was %s', offer)
         # add to bid destination
         dest.power_io(delta)
         # self.demand[key] += delta
         self.balance[key] += delta
         self.credits[key] += delta
         # subtract from offer source
-        source = self.select_node(offer.obj_id)
+        source = self.find_node(offer.obj_id)
         source.power_io(-delta )
-        source_domain = self.select_domain(offer.obj_id)
+        source_domain = self.gateway(offer.obj_id)
         source_domain.debits[key] -= delta
         source_domain.balance[key] -= delta
         logger.info('%s: Transfered %s wH from %s toward %s wH in %s',
@@ -281,7 +309,7 @@ class Domain(Device):
         # energy auction
         key = env.time
         initial_demand = self.demand[key]
-        node = self.select_node(bid.obj_id)
+        node = self.find_node(bid.obj_id)
         logger.debug("New auction %s for %s wH", key, initial_demand)
         offer = low_offer(self.network, bid)
         while offer and node.needsenergy():
@@ -293,35 +321,13 @@ class Domain(Device):
         # account for shortage
         if node.needsenergy() != 0. and not bid.storage:
             print self.balance[key], bid.storage
-            logger.debug("Shortfall of %s, in %s", self.balance[key], self)
+            logger.warning("Shortfall of %s, in %s", self.balance[key], self)
             self.outages += 1
             self.shortfall += self.demand[key]
             self.lolh += (initial_demand - self.balance[key])/initial_demand * \
                 self.timestep
             return False
         return True
-
-    def connected_domains(self):
-        # isdomain = lambda x: (type(x) is Domain) and (x is not self)
-        isdomain = lambda x: (type(x) is Domain)
-        return filter(isdomain, self.network)
-
-    def select_domain(self, obj_id):
-        for node in self.network:
-            if id(node) == obj_id:
-                for neighbor in node.network.neighbors(node):
-                    # should only be in one Domain
-                    # should only have one neighbor
-                    if type(neighbor) is Domain:
-                        return neighbor
-        raise KeyError('%s not found' % obj_id)
-
-    def select_node(self, obj_id):
-        for node in self.network:
-            if id(node) == obj_id:
-                return node
-        raise KeyError('%s not found' % obj_id)
-
     def calc(self, hours=1.0):
         """Calculate energy.
 
@@ -369,22 +375,21 @@ class Domain(Device):
         if not bid:
             logger.info('%s no bids.', key)
 
-        offer = low_offer(self.network, bid)
-        if not offer:
-            logger.info('%s no offers.', key)
-
         # are you selling to yourself?
         # are we transfering energy from battery to battery?
 
-        while bid and offer:
+        while bid:
             logger.debug('highest priority energy: %s', bid)
-            dest = self.select_domain(bid.obj_id)
+            dest = self.gateway(bid.obj_id)
             logger.debug('Transfering control to %s', dest)
             dest.get_energy( bid)
-            bid = high_bid(self.network)
             offer = low_offer(self.network, bid)
+            if not offer:
+                logger.info('%s no offers.', key)
+                break
+            bid = high_bid(self.network)
 
-        self.reconcile()
+        # self.reconcile()
 
     def needsenergy(self):
         e = 0

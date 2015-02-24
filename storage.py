@@ -1,5 +1,6 @@
 import numpy as np
 import environment as env
+import networkx as nx
 from misc import significant
 from visuals import report as stor_rep
 
@@ -41,7 +42,7 @@ class IdealStorage(Device):
         nominal_capacity: (float) in Wh.
         drained_hours: (float) hours empty.
     """
-    def __init__(self, capacity, chemistry=None):
+    def __init__(self, i_capacity, chemistry=None):
         """
         Args:
             capacity: (float) Wh.
@@ -50,9 +51,9 @@ class IdealStorage(Device):
         """
         if chemistry is None:
             self.chem = FLA()
-        self.nominal_capacity = capacity
+        self.nominal_capacity = i_capacity
         self.classification = "storage"
-        self.state = capacity  # start full
+        self.state = i_capacity  # start full
         self.throughput = 0.
         self.surplus = 0.
         self.drained_hours = 0.
@@ -65,12 +66,13 @@ class IdealStorage(Device):
         self.loss_occurence = 0
         self.c_in = []
         self.c_out = []
+        self.buy = 0.00001
 
     def report(self):
         return stor_rep(self, str(self))
 
     def soc_log(self):
-        last = self.capacity
+        last = self.nominal_capacity
         t = []
         for i in env.time_series:
             s = self.state_dict.setdefault(i,last)
@@ -111,16 +113,20 @@ class IdealStorage(Device):
 
     capacity_availible = needsenergy
 
-    def offer(self):
+    def offer(self, dest_id=None):
         """Energy offer.
 
         Returns:
             (Offer)
 
         """
-        o = Offer(id(self), self.hasenergy(), self.sell_kwh())
-        o.storage = True
-        return o
+        # if domain export = false don't offer outside domain
+        # path = nx.shortest_path(self.network, self, dest)
+        v = self.hasenergy()
+        if v:
+            o = Offer(id(self), v, self.sell_kwh())
+            o.storage = True
+            return o
 
     def bid(self):
         e = self.needsenergy()
@@ -141,7 +147,7 @@ class IdealStorage(Device):
     def buy_kwh(self):
         """Value of storing energy."""
         # no value to store
-        return 0.00001 #self.chem.cost_kwh
+        return self.buy # 0.00001 #self.chem.cost_kwh
 
     def depletion(self):
         """Battery depletion expense.

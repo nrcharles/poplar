@@ -63,6 +63,7 @@ def low_offer(nodes, bid=None):
     for node in nodes:
         if hasattr(node, 'offer'):
             offer = node.offer()
+            # offer = node.offer()
             if offer:
                 logger.debug('offer %s', offer)
                 if (offer.value < offer_value) \

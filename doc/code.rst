@@ -1,5 +1,5 @@
-Code
-====
+Code API
+========
 
 Devices
 -------
@@ -8,6 +8,12 @@ devices object is inherited by various other objects in other modules.
 
 .. automodule:: devices
    :members:
+
+Environment
+-----------
+
+.. automodule:: environment
+
 
 Controllers
 -----------
@@ -33,14 +39,6 @@ Storage
 
 .. automodule:: storage
    :members:
-
-power_io
-^^^^^^^^
-
-power_io is where the bulk of the IdealStorage logic happens.
-
-.. literalinclude:: ../storage.py
-   :pyobject: IdealStorage.power_io
 
 Misc
 ----

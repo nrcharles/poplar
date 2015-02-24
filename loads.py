@@ -1,7 +1,6 @@
-"""Loads
+"""Typical Loads.
 
-This Module contains various loads that can be used to acess system
-configurations.
+This Module contains various example loads.
 
 """
 import environment as env
@@ -37,7 +36,7 @@ def simple_profile(dt, mult=1.):
 def load(filename=None):
     BD = {}
     if filename is None:
-        filename = './profiles.csv'
+        filename = env.SRC_PATH + '/profiles.csv'
     foo = csv.reader(open(filename))
     for i in foo:
         lp = [float(j.strip()) for j in i[2:50]]
@@ -57,7 +56,7 @@ class Load(Device):
 
     def needsenergy(self):
         key = env.time
-        if not key in self.balance:
+        if key not in self.balance:
             self.balance[key] = self.demand(key)
         return self.balance[key]
 
@@ -180,7 +179,7 @@ TV_H = range(25)
 TV = DailyLoad(TV_H, TV_L, kind='linear', name='12" B&W TV')
 TV.per_kwh = .08
 
-FLAT = DailyLoad([0,25],[8.15, 8.15], kind='linear', name ='Flat')
+FLAT = DailyLoad([0, 25], [8.15, 8.15], kind='linear', name='Flat')
 
 # Average Load Profile from 2013 Annual
 BD_AVE = [0.]*24
@@ -200,7 +199,7 @@ def noisy_profile(t):
 
 
 def quantify_load(load, solar_gen):
-    """How much of a load can be met by sunlight
+    """How much of a load can be met by sunlight?
 
     """
     l = np.array(load)
@@ -214,9 +213,9 @@ def quantify_load(load, solar_gen):
 if __name__ == '__main__':
     import doctest
     doctest.testmod()
-    REC = {'datetime':datetime.datetime.now()}
+    REC = {'datetime': datetime.datetime.now()}
     print BD_AVE.needsenergy(REC)
     print BD_AVE(datetime.datetime.now())
     print BD(datetime.datetime.now())
-    print TV(datetime.datetime(2012,12,15,20))
+    print TV(datetime.datetime(2012, 12, 15, 20))
     print TV.bid(REC)

@@ -48,6 +48,9 @@ def report(domain, figname='SHS', title=None):
     print len(soc_log)
     pp = np.array(soc_log)
     pp.sort()
+    print type(pp)
+    print np.mean(pp)
+    print np.std(pp)
     fit = stats.norm.pdf(pp, np.mean(pp), np.std(pp))
 
     soc_frequency.hist(soc_log, 40, normed=True)

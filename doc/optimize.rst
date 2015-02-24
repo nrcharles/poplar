@@ -1,9 +1,9 @@
-Optimize
-========
+Optimization Case Study
+=======================
 
 In this section we will explore how we can use poplar to optimize the Bangladesh Solar Home System.
 
-Case Study
+Background
 ----------
 
 Rahima is from a small Bangladeshi village in Bogra district. Roughly 100 families live in her village.
@@ -46,11 +46,19 @@ She could get a micro loan for an SHS, but if the grid is extended it will be pr
 What is a good solution for Rahima's energy needs?
 
 
-Notes
------
+Assumptions
+-----------
 
-For this testcase we will use the annual BD profile nominalized to a size
-relevant to the SHS sizing.  Desired load is total annual load.
+For this test case we will use an annual load profile nominalized to a size
+relevant to the SHS sizing. The function loads.annual is from Bangladesh's load profile from 2013, it is nominalized
+to at 71.4 kWh annual desired load. It's typical shape is seen in :ref:`bd_ave`.
+
+.. _bd_ave:
+
+.. figure:: ./bd_ave.png
+
+   mean daily base load profile
+
 Iterating over the space of PV STC nameplate sizes of 5-200 W and Battery Effective Capacity
 20-250 wH and plotting various metrics help determine what is the nature of the
 optimization problem.
@@ -58,9 +66,9 @@ optimization problem.
 Scaling
 ^^^^^^^
 There is a scaling/sizing problem that is somewhat hard to quantify that
-arrises from the fact there is not a device that correlates to every possible size.
+arises from the fact there is not a device that correlates to every possible size.
 
-:ref:`figscale` shows how this non-linearality shows up in system costs. In
+:ref:`figscale` shows how this non-linear nature shows up in system costs. In
 systems that are interconnected, this issues is smoothed over by purchasing or selling
 excess energy into the grid.
 
@@ -269,3 +277,8 @@ Domain outages (n)               256.0
 Capacity Factor (%)              11.8
 Domain Parts (USD)               89.3
 ================================ =====
+
+
+.. bibliography:: ../../../../bibtex/poplar.bib
+    :cited:
+    :style: unsrt

@@ -29,12 +29,9 @@ It depends on several external libraries including solpy and caelum.
 .. toctree::
    :maxdepth: 2
 
+   methodology
    code
    optimize
-
-.. bibliography:: ../../../../bibtex/poplar.bib
-    :cited:
-    :style: unsrt
 
 
 Indices and tables

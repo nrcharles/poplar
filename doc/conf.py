@@ -28,7 +28,8 @@ sys.path.insert(0, os.path.abspath('..'))
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
-extensions = ['sphinx.ext.autodoc','sphinxcontrib.bibtex','sphinx.ext.mathjax']
+extensions = ['sphinx.ext.autodoc', 'sphinxcontrib.bibtex',
+              'sphinx.ext.graphviz', 'sphinx.ext.mathjax']
 
 #autodoc_default_flags = ['members', 'special-members']
 

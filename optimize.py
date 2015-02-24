@@ -4,14 +4,16 @@ Adjust battery capacity and pv size to minimize price of a Solar Home System
 for a location.
 
 """
-from devices import Domain, SimplePV, PVSystem
+import environment as env
+import logging
+logging.basicConfig(level=logging.WARNING)
+from devices import Domain
+from sources import SimplePV, Site, InclinedPlane
 from storage import IdealStorage
 from controllers import MPPTChargeController, SimpleChargeController
-from loads import annual
 from caelum import eere
 import numpy as np
 from scipy import optimize
-from visuals import report
 
 # Parameters that could be tested
 # battery chemistry LA,LI
@@ -61,16 +63,19 @@ class Case(object):
         Returns:
             (domain): results from model.
         """
+        env.time_series=[]
         size, pv = parameters
         # don't go below 1 negative/division by zero issues
-        pv = max(pv, 1)
-        size = max(size, 1)
+        pv = max(pv, 1.)
+        size = max(size, 1.)
 
+        plane = InclinedPlane(Site(self.place),self.tilt, self.azimuth)
         SHS = Domain([self.load,
-                      PVSystem([self.cc([SimplePV(pv)])],
-                               self.place, self.tilt, self.azimuth),
+                     self.cc([SimplePV(pv, plane)]),
                       IdealStorage(size)])
-        SHS.weather_series(eere.EPWdata(self.weather_station))
+        for r in eere.EPWdata('418830'):
+            env.update_time(r['datetime'])
+            SHS()
         print SHS.details()
         return SHS
 
@@ -163,7 +168,7 @@ def mppt(load, merit):
     r = optimize.minimize(case1, x0)
     print r
     s, p = r['x']
-    tex_tab, tex_fig = report(case1.model((s, p)), 'mppt_min_%s' % merit)
+    tex_tab, tex_fig = case1.model((s, p)).report()
     print tex_tab, tex_fig
 
 
@@ -190,11 +195,12 @@ def simple(load, merit):
     r = optimize.minimize(case1, x0)
     print r
     s, p = r['x']
-    report(case1.model((s, p)), 'simple_min_%s' % merit)
+    case1.model((s, p)).report()
 
 
 if __name__ == '__main__':
     import loads
+    env.set_weather(eere.EPWdata('418830'))
     merit = LolhMerit(1.0)
     mppt(loads.BD_AVE, merit)
     # mppt(annual(), merit)
