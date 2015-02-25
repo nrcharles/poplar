@@ -124,6 +124,7 @@ class IdealStorage(Device):
         """
         # if domain export = false don't offer outside domain
         # todo: this needs some more nuance
+        # todo: this should possiblty be a domain method.
         if dest_id == id(self):
             return None
 

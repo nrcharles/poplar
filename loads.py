@@ -97,6 +97,7 @@ class Annual(Load):
         self.mult = mult
         self.classification = "load"
         self.deferable = False
+        self.droop_ratio = 0.
         self.year = year
         self.per_kwh = 0.07
         self.data = load()
@@ -154,7 +155,7 @@ class DailyLoad(Load):
         self.name = name
         self.classification = "load"
         self.deferable = False
-        self.dimmable = False
+        self.droop_ratio = 0.
         self.per_kwh = 0.07
         self.small_id = SMALL_ID.next(name)
         self.balance = {}
@@ -173,11 +174,15 @@ class DailyLoad(Load):
 times = np.array(range(0, 49))/2.
 spline_profile = DailyLoad(times, np.array(LOAD_PROFILE)*17)
 
-TV_L = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -20, -20, -20,
-        -20, 0, 0]
-TV_H = range(25)
-TV = DailyLoad(TV_H, TV_L, kind='linear', name='12" B&W TV')
-TV.per_kwh = .08
+def tv(wattage=20):
+    l = np.array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                  -1, -1, -1, -1, 0, 0])
+    h = range(25) # to get 24 hour interpolation
+    tv_inst = DailyLoad(h, l*wattage, kind='linear', name='12" B&W TV')
+    tv_inst.per_kwh = .08
+    return  tv_inst
+
+TV = tv(20)
 
 FLAT = DailyLoad([0, 25], [8.15, 8.15], kind='linear', name='Flat')
 
