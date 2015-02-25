@@ -36,7 +36,7 @@ def simple_profile(dt, mult=1.):
 def load(filename=None):
     BD = {}
     if filename is None:
-        filename = env.SRC_PATH + '/profiles.csv'
+        filename = env.SRC_PATH + '/bd_hist_profile.csv'
     foo = csv.reader(open(filename))
     for i in foo:
         lp = [float(j.strip()) for j in i[2:50]]
@@ -67,6 +67,11 @@ class Load(Device):
 
     def buy_kwh(self):
         return self.value_kwh()
+
+    def enabled(self):
+        td = self.total() * env.total_time/self.interval
+        sf = sum(self.balance.values())
+        return abs(td - sf)
 
     def value_kwh(self):
         return self.per_kwh
@@ -104,6 +109,7 @@ class Annual(Load):
         self.small_id = SMALL_ID.next(type(self))
         self.balance = {}
         self.detail = None
+        self.interval = 365*24.
 
     def demand(self, dt):
         """ Demand at time.
@@ -159,6 +165,7 @@ class DailyLoad(Load):
         self.per_kwh = 0.07
         self.small_id = SMALL_ID.next(name)
         self.balance = {}
+        self.interval = 24.
 
     def demand(self, dt):
         return self.profile(dt.hour + dt.minute/60.)

@@ -44,13 +44,8 @@ def report(domain, figname='SHS', title=None):
     soc_frequency.set_ylabel('Hourly Frequency')
     soc_frequency.set_title('Normalized SoC Histogram')
     soc_log = domain.soc_log()
-    print len(domain.state_series)
-    print len(soc_log)
     pp = np.array(soc_log)
     pp.sort()
-    print type(pp)
-    print np.mean(pp)
-    print np.std(pp)
     fit = stats.norm.pdf(pp, np.mean(pp), np.std(pp))
 
     soc_frequency.hist(soc_log, 40, normed=True)

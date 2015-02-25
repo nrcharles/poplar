@@ -15,13 +15,16 @@ weather = {}
 time_series = []
 time = None
 network = None
+total_time = 0.  # hours
 
 def set_weather(iterable):
     for i, r in enumerate(iterable):
         weather[r['datetime']] = r
 
-def update_time(dt):
+def update_time(dt, hours=1.):
     """Update global simulation time."""
     global time
+    global total_time
+    total_time += hours
     time_series.append(dt)
     time = dt

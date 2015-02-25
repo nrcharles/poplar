@@ -56,6 +56,9 @@ class Source(Device):
         self.debits[key] = self.debits.setdefault(key, 0) + energy
         return 0.
 
+    def total_gen(self):
+        return sum(self.balance.values()) - sum(self.debits.values()) + self.losses()
+
 class SimplePV(Device):
 
     """Simple PV module (Generic).

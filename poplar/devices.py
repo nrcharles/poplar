@@ -242,7 +242,15 @@ class Domain(Device):
 
 
         """
-        return sum(self.net_l)/(sum(self.g) + self.parameter('losses'))
+        net_l = 0.
+        g = 0.
+        for node in self.network.nodes():
+            if hasattr(node, 'enabled'):
+                net_l += node.enabled()
+            if hasattr(node, 'total_gen'):
+                g += node.total_gen()
+
+        return net_l/g
 
     def capacity(self):
         """Total capacity of energy storage."""
@@ -355,7 +363,7 @@ class Domain(Device):
 
         # account for shortage
         if node.needsenergy() != 0. and not bid.storage:
-            print self.balance[key], bid.storage
+            # print self.balance[key], bid.storage
             logger.warning("Shortfall of %s, in %s", self.balance[key], self)
             self.outages += 1
             self.shortfall += self.demand[key]
