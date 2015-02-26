@@ -55,6 +55,17 @@ def high_bid(nodes, offer=None):
                     high_bid = bid
     return high_bid
 
+def rank_bids(nodes):
+    bids = []
+    for node in nodes:
+        if hasattr(node, 'bid'):
+            bid = node.bid()
+            if bid:
+                logger.debug('bid %s',bid)
+                bids.append(bid)
+    bids.sort(key=lambda x: x.value, reverse=True)
+    return bids
+
 def low_offer(nodes, bid):
     if bid == None:
         bid = Bid(0,0,0)
