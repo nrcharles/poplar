@@ -2,7 +2,7 @@ import numpy as np
 import networkx as nx
 import environment as env
 from misc import significant, Counter
-from econ import high_bid, low_offer
+from econ import high_bid, low_offer, rank_bids
 from visuals import multi_report
 
 import logging
@@ -210,6 +210,7 @@ class Domain(Device):
         self.debits = {}
         self.balance = {}
         self.demand = {}
+        self.outage = {}
         self.source = {}
         self.lolh = 0.
         self.r = 1.
@@ -295,11 +296,11 @@ class Domain(Device):
             'Domain Parts (USD)': significant(self.cost()),
             'Domain depletion (USD)': significant(self.depletion()),
             'Domain lolh (hours)': significant(self.lolh),
-            'Domain outages (n)': significant(self.outages),
+            'Domain outages (n)': significant(sum(self.outage.values())),
             'A (m2)': significant(self.parameter('area')),
             'Toxicity (CTUh)': significant(self.tox()),
             'CO2 (kgCO2 eq)': significant(self.co2()),
-            # 'Domain Efficiency (%)': significant(self.eta()*100),
+            'Domain Efficiency (%)': significant(self.eta()*100),
             'STC (w)': self.STC()
         }
         return results
@@ -364,13 +365,15 @@ class Domain(Device):
         # account for shortage
         if node.needsenergy() != 0. and not bid.storage:
             # print self.balance[key], bid.storage
-            logger.warning("Shortfall of %s, in %s", self.balance[key], self)
-            self.outages += 1
+            logger.warning("Shortfall of %s, in %s for %s", self.balance[key],
+                           self, node)
+            self.outage[env.time] = 1
             self.shortfall += self.demand[key]
             self.lolh += (initial_demand - self.balance[key])/initial_demand * \
                 self.timestep
             return False
         return True
+
     def calc(self, hours=1.0):
         """Calculate energy.
 
@@ -389,7 +392,7 @@ class Domain(Device):
         key = env.time
 
         logger.debug('Start processsing %s', key)
-        #init
+        # init
         for node in self.connected_domains():
             node.timestep = hours
             node.time_series.append(key)
@@ -414,23 +417,15 @@ class Domain(Device):
 
         # rebalance power neglecting transmission costs/constraints
         # find demand with highest priority
-        bid = high_bid(self.network, )
-        if not bid:
+        bids = rank_bids(self.network)
+        if len(bids) == 0:
             logger.info('%s no bids.', key)
 
-        # are you selling to yourself?
-        # are we transfering energy from battery to battery?
-
-        while bid:
-            logger.debug('highest priority energy: %s', bid)
+        for bid in bids:
+            logger.debug('current energy priority: %s', bid)
             dest = self.dest_gateway(bid.obj_id)
             logger.debug('Transfering control to %s', dest)
-            dest.get_energy( bid)
-            offer = low_offer(self.network, bid)
-            if not offer:
-                logger.debug('%s no offers.', key)
-                break
-            bid = high_bid(self.network)
+            dest.get_energy(bid)
 
         # self.reconcile()
 
@@ -491,7 +486,8 @@ class Domain(Device):
     __call__ = calc
 
     def __repr__(self):
-        return 'Domain %s, %s Outages' % (self.small_id, self.outages)
+        return 'Domain %s, %s Outages' % (self.small_id,
+                                          sum(self.outage.values()))
         # significant(self.cost())
 
 
