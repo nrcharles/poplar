@@ -28,3 +28,9 @@ def update_time(dt, hours=1.):
     total_time += hours
     time_series.append(dt)
     time = dt
+
+def reset():
+    global time_series
+    global network
+    time_series = []
+    network = None
