@@ -9,7 +9,7 @@ solar of in the developing world has been largely established,
 :cite:`PA2014,BloombergNewEnergyFinance2014` but there is a need for flexible
 resources. :cite:`InternationalEnergyAgency2012`
 
-poplar was designed as a framework to to study the microgrid energy usage from
+poplar was designed as a framework to study the microgrid energy usage from
 the bottom up. Correlating python objects with real world and theoretical
 devices allows for rapid exploration  of various configurations and policies to
 determine priorities and size and optimize photovoltaic solar

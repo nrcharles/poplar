@@ -49,15 +49,14 @@ What is a good solution for Rahima's energy needs?
 Assumptions
 -----------
 
-For this test case we will use an annual load profile nominalized to a size
-relevant to the SHS sizing. The function loads.annual is from Bangladesh's load profile from 2013, it is nominalized
-to at 71.4 kWh annual desired load. It's typical shape is seen in :ref:`bd_ave`.
+For this test case weather data comes from SWERA.  For the base case the annual load profile function loads.annual comes from data reported by Bangladesh's Power Development Board (BPDB) in 2013. It has been nominalized to a load relevant to a SHS load, 71.4 kWh annually. It's typical shape is seen in :ref:`bd_ave`. Developed from this base case synthetic loads will be used.
 
 .. _bd_ave:
 
 .. figure:: ./bd_ave.png
 
    mean daily base load profile
+
 
 Iterating over the space of PV STC nameplate sizes of 5-200 W and Battery Effective Capacity
 20-250 wH and plotting various metrics help determine what is the nature of the
@@ -81,7 +80,7 @@ Where x is kWh, m is increment size V is volume discount constant and b is price
 
 .. _figscale:
 
-.. figure:: ../scaling.pdf
+.. figure:: scaling.pdf
 
    System price to enable a load
 
@@ -134,37 +133,37 @@ a solution space where there are 0 LOLH for this annual load.
 
 .. _figeta:
 
-.. figure:: ../parm_eta.pdf
+.. figure:: scalar_field/parm_eta.pdf
 
    System efficiency
 
 .. _fignl:
 
-.. figure:: ../parm_nl.pdf
+.. figure:: scalar_field/parm_nl.pdf
 
    Loads enabled in Wh
 
 .. _figeg:
 
-.. figure:: ../parm_eg.pdf
+.. figure:: scalar_field/parm_eg.pdf
 
    Excess generation in Wh
 
 .. _figc:
 
-.. figure:: ../parm_c.pdf
+.. figure:: scalar_field/parm_c.pdf
 
    kg CO2 eq
 
 .. _figP:
 
-.. figure:: ../parm_P.pdf
+.. figure:: scalar_field/parm_P.pdf
 
    System cost (USD)/W
 
 .. _figr:
 
-.. figure:: ../parm_r.pdf
+.. figure:: scalar_field/parm_r.pdf
 
    System outages in hours
 
@@ -187,8 +186,7 @@ Code
    :members:
 
 
-.. literalinclude:: ../optimize.py
-
+.. literalinclude:: ../poplar/optimize.py
 
 
 Output
@@ -196,87 +194,7 @@ Output
 
 .. .. program-output:: python --help
 
-.. _figcase1:
-
-.. figure:: ../mppt_min_lolh_1_0.pdf
-
-   MPPT System sized at $1.0/LOLH
-
-================================ =====
-Parameter (units)                Value
-================================ =====
-Desired load (wh)                71400
-Domain efficiency (%)            41.7
-A (m2)                           0.5
-CO2 (kgCO2 eq)                   235.0
-Domain surplus (kWh)             91400
-Toxicity (CTUh)                  90.6
-STC (w)                          100.0
-gen losses (wh)                  8570
-Autonomy (hours) (Median Load/C) 21.7
-Domain lolh (hours)              0.887
-Domain depletion (USD)           9.7
-Domain outages (n)               3.0
-Capacity Factor (%)              8.15
-Domain Parts (USD)               122.0
-================================ =====
-
-.. _figcase2:
-
-.. figure:: ../simple_min_lolh_1_0.pdf
-
-   Simple System sized at $1.0/LOLH
-
-
-The results of :ref:`figcase1` compared to :ref:`figcase2` show how MPPT can
-theoretically reduce the needed PV Module size.
-
-================================ ======
-Parameter (units)                Value
-================================ ======
-desired load (wh)                71400
-eta T (%)                        35.2
-A (m2)                           0.592
-CO2 (kgCO2 eq)                   273.0
-Domain surplus (kWh)             101000
-Toxicity (CTUh)                  101.0
-STC (w)                          118.5
-gen losses (wh)                  30800
-Autonomy (hours) (Median Load/C) 23.4
-Domain lolh (hours)              0.0
-Domain depletion (USD)           10.3
-Domain outages (n)               0
-Capacity Factor (%)              6.88
-Domain Parts (USD)               137.0
-================================ ======
-
-.. _figcase3:
-
-.. figure:: ../mppt_min_lolh_0_07.pdf
-
-   MPPT System sized at $0.07/LOLH
-
-The results of :ref:`figcase3` show a reduction in reliability theoretically
- increases efficiency and decreases costs.
-
-================================ =====
-Parameter (units)                Value
-================================ =====
-desired load (wh)                71400
-eta T (%)                        60.1
-A (m2)                           0.338
-CO2 (kgCO2 eq)                   166.0
-Domain surplus (kWh)             40400
-Toxicity (CTUh)                  68.1
-STC (w)                          67.6
-gen losses (wh)                  5790
-Autonomy (hours) (Median Load/C) 16.9
-Domain lolh (hours)              197.0
-Domain depletion (USD)           8.32
-Domain outages (n)               256.0
-Capacity Factor (%)              11.8
-Domain Parts (USD)               89.3
-================================ =====
+.. include:: case1/case.rst
 
 
 .. bibliography:: ../../../../bibtex/poplar.bib
