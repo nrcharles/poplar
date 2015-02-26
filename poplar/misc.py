@@ -17,6 +17,10 @@ def latexify(s):
     s = s.replace('.', '_')
     return s
 
+def fsify(s):
+    s = s.replace(' ', '_')
+    s = s.replace(',', '')
+    return s.lower()
 
 def heatmap(list_like):
     mangled_a = []
