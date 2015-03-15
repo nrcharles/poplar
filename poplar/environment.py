@@ -1,3 +1,6 @@
+# Copyright (C) 2015 Nathan Charles
+#
+# This program is free software. See terms in LICENSE file.
 """Environmental Variables.
 
 Environment holds weather and global variables in shared memory.
@@ -12,8 +15,8 @@ import os
 SRC_PATH = os.path.dirname(os.path.abspath(__file__))
 
 weather = {}
-time_series = []
 time = None
+time_series = []
 network = None
 total_time = 0.  # hours
 
@@ -32,5 +35,7 @@ def update_time(dt, hours=1.):
 def reset():
     global time_series
     global network
+    global total_time
     time_series = []
     network = None
+    total_time = 0
