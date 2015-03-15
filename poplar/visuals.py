@@ -1,8 +1,12 @@
+# Copyright (C) 2015 Nathan Charles
+#
+# This program is free software. See terms in LICENSE file.
 import matplotlib.pyplot as plt
 import scipy.stats as stats
 import numpy as np
 import networkx as nx
-from misc import heatmap, latexify
+from misc import heatmap, latexify, fsify
+
 
 def table_dict(d):
     maxlen_k = 17
@@ -16,30 +20,31 @@ def table_dict(d):
                 maxlen_k = l_k
             if l_v > maxlen_v:
                 maxlen_v = l_v
-    sep = ''.join(['='] * maxlen_k + [' '] + ['=']*maxlen_v)
+    sep = ''.join(['='] * maxlen_k + [' '] + ['=']*maxlen_v) + '\n'
     tab.append(sep)
-    tab.append('%s%s' % ('Parameter (units)'.ljust(maxlen_k+1), 'Value'))
+    tab.append('%s%s\n' % ('Parameter (units)'.ljust(maxlen_k+1), 'Value'))
     tab.append(sep)
     for k in d.iterkeys():
-        tab.append('%s%s' % (k.ljust(maxlen_k+1), d[k]))
+        tab.append('%s%s\n' % (k.ljust(maxlen_k+1), d[k]))
     tab.append(sep)
     return tab
 
 
-def report(domain, figname='SHS', title=None):
-    """Generate a PDF report of a domain
+def report(device, figname='SHS', title=None):
+    """Generate a PDF report of a storage device
 
     Args:
-        domain (object):
+        device (object):
         figname (str):
 
     """
+    domain = device
     figname = latexify(figname)
     if not title:
         title = figname
-    fig = plt.figure(figsize=(8.5, 11))
+    fig = plt.figure()  # figsize=(8.5, 11))
     td = domain.details()
-    soc_frequency = fig.add_subplot(321)
+    soc_frequency = fig.add_subplot(221)
     soc_frequency.set_xlabel('SoC')
     soc_frequency.set_ylabel('Hourly Frequency')
     soc_frequency.set_title('Normalized SoC Histogram')
@@ -51,7 +56,7 @@ def report(domain, figname='SHS', title=None):
     soc_frequency.hist(soc_log, 40, normed=True)
     soc_frequency.plot(pp, fit)
 
-    storage_soc = fig.add_subplot(322)
+    storage_soc = fig.add_subplot(222)
     storage_soc.set_xlabel('day')
     storage_soc.set_ylabel('hour')
     storage_soc.set_title('Storage State of Charge')
@@ -59,7 +64,7 @@ def report(domain, figname='SHS', title=None):
     soc_bar = fig.colorbar(soc)
     soc_bar.set_label('%')
 
-    d_soc_frequency = fig.add_subplot(323)
+    d_soc_frequency = fig.add_subplot(223)
     d_soc_frequency.set_xlabel('SoC')
     d_soc_frequency.set_ylabel('Daily Frequency')
     d_soc_frequency.set_title('Normalized SoC Histogram')
@@ -74,7 +79,7 @@ def report(domain, figname='SHS', title=None):
                   "\\centering\n"
                   "\\includegraphics[width=\\linewidth]{../thesis/code/%s.pdf}\n"
                   "\\caption{%s} \\label{fig:%s}\n"
-                  "\\end{figure}\n") % (figname, latexify(title), figname)
+                  "\\end{figure}\n") % (fsify(figname), latexify(title), figname)
 
     table_str = ("\\begin{table}\n"
                  "\\centering\n"
@@ -93,7 +98,7 @@ def report(domain, figname='SHS', title=None):
 
 
     fig.tight_layout()
-    fig.savefig('%s.pdf' % figname)
+    fig.savefig('%s.pdf' % fsify(figname))
     return table_str, figure_str
 
 def multi_report(domain, figname='SHS', title=None):
@@ -155,7 +160,7 @@ def multi_report(domain, figname='SHS', title=None):
                   "\\centering\n"
                   "\\includegraphics[width=\\linewidth]{../thesis/code/%s.pdf}\n"
                   "\\caption{%s} \\label{fig:%s}\n"
-                  "\\end{figure}\n") % (figname, latexify(title), figname)
+                  "\\end{figure}\n") % (fsify(figname), latexify(title), figname)
 
     table_str = ("\\begin{table}\n"
                  "\\centering\n"
@@ -193,7 +198,7 @@ def multi_report(domain, figname='SHS', title=None):
     domain_graph.set_ylim(y1*p, y2*p)
     domain_graph.axis('off')
     fig.tight_layout()
-    fig.savefig('%s.pdf' % figname)
+    fig.savefig('%s.pdf' % fsify(figname))
     return table_str, figure_str
 
 def save_graph(domain, figname):
@@ -219,7 +224,7 @@ def save_graph(domain, figname):
     domain_graph.set_ylim(y1*p, y2*p)
     domain_graph.axis('off')
     fig.tight_layout()
-    fig.savefig('%s.pdf' % figname)
+    fig.savefig('%s.pdf' % latexify(figname))
 
 
 if __name__ == '__main__':
