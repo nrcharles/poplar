@@ -1,0 +1,19 @@
+digraph G {
+  size="8,6";
+  "Start" ->
+  "Sum non-droopable demand" -> "Sum energy with \n curtailment penalties" ->
+  "Are there bids?" -> "Rank bids" -> "Transfer control to\n bid Domain" ->
+  "Bid has offers?";
+  "Bid has offers?" -> "Shortfall" [label="no"];
+  "Bid has offers?" -> "Choose lowest offer" [label="yes"];
+  "Choose lowest offer" -> "Transaction"[label="yes"];
+  "Transaction" -> "Sufficient?";
+  "Sufficient?" -> "Another bid?" [label="yes"];
+  "Sufficient?" -> "Bid has offers?" [label="no"];
+  "Are there bids?" -> "End" [label="no"];
+  "Shortfall" -> "Another bid?";
+  "Another bid?" -> "Transfer control to\n bid Domain" [label="yes"];
+  "Another bid?" -> "End" [label="no"];
+
+
+}

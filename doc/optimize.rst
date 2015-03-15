@@ -59,7 +59,7 @@ For this test case weather data comes from SWERA.  For the base case the annual 
 
 
 Iterating over the space of PV STC nameplate sizes of 5-200 W and Battery Effective Capacity
-20-250 wH and plotting various metrics help determine what is the nature of the
+20-250 Wh and plotting various metrics help determine what is the nature of the
 optimization problem.
 
 Scaling
@@ -143,29 +143,30 @@ a solution space where there are 0 LOLH for this annual load.
 
    Loads enabled in Wh
 
-.. _figeg:
-
-.. figure:: scalar_field/parm_eg.pdf
-
-   Excess generation in Wh
-
 .. _figc:
 
 .. figure:: scalar_field/parm_c.pdf
 
-   kg CO2 eq
+   kg CO\ :sub:`2`\  eq
 
 .. _figP:
 
 .. figure:: scalar_field/parm_P.pdf
 
-   System cost (USD)/W
+   System cost (USD)
 
 .. _figr:
 
-.. figure:: scalar_field/parm_r.pdf
+.. figure:: scalar_field/parm_lolh.pdf
 
-   System outages in hours
+   System outage
+
+.. _figwh:
+
+.. figure:: scalar_field/parm_wh.pdf
+
+   Price per Wh (USD/Wh)
+
 
 Ranking
 ^^^^^^^
@@ -196,6 +197,9 @@ Output
 
 .. include:: case1/case.rst
 
+.. include:: case2/case.rst
+
+.. include:: case3/case.rst
 
 .. bibliography:: ../../../../bibtex/poplar.bib
     :cited:
