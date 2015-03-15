@@ -38,7 +38,8 @@ class Seed(object):
                     self.network.add_nodes_from(c.nodes())
                     self.network.add_edges_from(c.edges())
                     self.network.add_edge(self, i)
-                    i.network = self.network
+                    for node in i.network:
+                        node.network = self.network
                 else:
                     self.network.add_edge(self, i)
 
@@ -82,7 +83,9 @@ class Seed(object):
         for node in self.network:
             if id(node) == obj_id:
                 return node
-        print self.network.nodes()
+        for i in self.network:
+            print i, id(i)
+
         raise KeyError('Node %s not found' % obj_id)
 
     def path(self, node):
@@ -201,7 +204,6 @@ class Domain(Device):
         self.state_series = []
         self.hours = []
         self.time_series = []
-        self.outages = 0
         self.net_g = []  # used generation
         self.net_l = []  # enabled load
         self.surplus = 0.
@@ -286,7 +288,7 @@ class Domain(Device):
             'Net (wh)': significant(sum(self.log_dict_to_list('balance'))),
             'Domain Sources(wh)': significant(sum(self.log_dict_to_list('source'))),
             'Domain credits(wh)': significant(sum(self.log_dict_to_list('credits'))),
-            'Domain dedits(wh)': significant(sum(self.log_dict_to_list('debits'))),
+            'Domain debits(wh)': significant(sum(self.log_dict_to_list('debits'))),
             'Domain Generation losses (wh)':
             significant(self.parameter('losses')),
             # 'Autonomy (hours) (Median Load/C)': significant(self.autonomy()),
@@ -297,6 +299,7 @@ class Domain(Device):
             'Domain depletion (USD)': significant(self.depletion()),
             'Domain lolh (hours)': significant(self.lolh),
             'Domain outages (n)': significant(sum(self.outage.values())),
+            'Domain shortfall (wH)': significant(self.shortfall),
             'A (m2)': significant(self.parameter('area')),
             'Toxicity (CTUh)': significant(self.tox()),
             'CO2 (kgCO2 eq)': significant(self.co2()),
@@ -352,8 +355,9 @@ class Domain(Device):
     def get_energy(self, bid):
         # energy auction
         key = env.time
-        initial_demand = self.demand[key]
         node = self.find_node(bid.obj_id)
+        # initial_demand = node.needsenergy()
+        initial_demand = self.demand[key]
         logger.debug("New auction %s for %s wH", key, initial_demand)
         offer = low_offer(self.network, bid)
         while offer and node.needsenergy():
@@ -368,9 +372,11 @@ class Domain(Device):
             logger.warning("Shortfall of %s, in %s for %s", self.balance[key],
                            self, node)
             self.outage[env.time] = 1
-            self.shortfall += self.demand[key]
-            self.lolh += (initial_demand - self.balance[key])/initial_demand * \
-                self.timestep
+            self.shortfall += node.needsenergy()
+            # todo: there might be a bug here
+            # self.lolh += self.timestep - (initial_demand - node.needsenergy())\
+            self.lolh += self.timestep - (initial_demand - self.demand[key]) \
+                    /initial_demand * self.timestep
             return False
         return True
 
