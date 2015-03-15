@@ -1,3 +1,6 @@
+# Copyright (C) 2015 Nathan Charles
+#
+# This program is free software. See terms in LICENSE file.
 import numpy as np
 import environment as env
 import networkx as nx
@@ -164,7 +167,7 @@ class IdealStorage(Device):
     def buy_kwh(self):
         """Value of storing energy."""
         # no value to store
-        return self.buy # 0.00001 #self.chem.cost_kwh
+        return self.buy  # 0.00001 #self.chem.cost_kwh
 
     def depletion(self):
         """Battery depletion expense.
