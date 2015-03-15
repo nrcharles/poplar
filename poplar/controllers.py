@@ -1,5 +1,7 @@
+# Copyright (C) 2015 Nathan Charles
+#
+# This program is free software. See terms in LICENSE file.
 from misc import significant
-from devices import Device
 from sources import Source
 
 
@@ -19,6 +21,7 @@ class ChargeController(Source):
         self.device_cost = 10.
         self.device_tox = 3.  # todo: placeholder value
         self.device_co2 = 5.  # todo: placeholder value
+        self.gen = True
 
     def losses(self):
         return self.loss
@@ -76,6 +79,7 @@ class MPPTChargeController(ChargeController):
         self.device_tox = 3.
         self.device_co2 = 5.
         self.efficiency = efficiency
+        self.gen = True
         self.loss = 0.
 
     def output(self):
@@ -129,6 +133,7 @@ class SimpleChargeController(ChargeController):
         self.balance = {}
         self.children = children
         self.debits = {}
+        self.gen = True
         self.loss = 0
         self.vnom = vnom
         self.device_cost = 7.
