@@ -1,3 +1,6 @@
+# Copyright (C) 2015 Nathan Charles
+#
+# This program is free software. See terms in LICENSE file.
 from __future__ import division
 from misc import significant
 import math
@@ -37,9 +40,10 @@ class Offer(object):
     def __repr__(self):
         return '%s %s wh %s' % (self.obj_id, self.wh, self.value)
 
+
 def high_bid(nodes, offer=None):
     if offer == None:
-        offer = Offer(0,0,0)
+        offer = Offer(0, 0, 0)
     high_bid = None
     bid_value = 0.
     for node in nodes:
@@ -50,7 +54,7 @@ def high_bid(nodes, offer=None):
                 if (bid.value > bid_value) \
                     and (bid.obj_id != offer.obj_id) \
                     and not (bid.storage and offer.storage):
-                    logger.debug('new high_bid %s',bid)
+                    logger.debug('new high_bid %s', bid)
                     bid_value = bid.value
                     high_bid = bid
     return high_bid
@@ -61,14 +65,14 @@ def rank_bids(nodes):
         if hasattr(node, 'bid'):
             bid = node.bid()
             if bid:
-                logger.debug('bid %s',bid)
+                logger.debug('bid %s', bid)
                 bids.append(bid)
     bids.sort(key=lambda x: x.value, reverse=True)
     return bids
 
 def low_offer(nodes, bid):
     if bid == None:
-        bid = Bid(0,0,0)
+        bid = Bid(0, 0, 0)
     low_offer = None
     offer_value = 100.
     for node in nodes:
