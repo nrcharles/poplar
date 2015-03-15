@@ -5,8 +5,9 @@ for a location.
 
 """
 import environment as env
+import copy
 import logging
-logging.basicConfig(level=logging.WARNING)
+logging.basicConfig(level=logging.ERROR)
 from devices import Domain
 from sources import SimplePV, Site, InclinedPlane
 from storage import IdealStorage
@@ -63,19 +64,24 @@ class Case(object):
         Returns:
             (domain): results from model.
         """
-        env.time_series=[]
+        env.reset()
         size, pv = parameters
         # don't go below 1 negative/division by zero issues
         pv = max(pv, 1.)
         size = max(size, 1.)
 
         plane = InclinedPlane(Site(self.place),self.tilt, self.azimuth)
-        SHS = Domain([self.load,
-                     self.cc([SimplePV(pv, plane)]),
+        load = self.load()
+        SHS = Domain([load,
+                      self.cc([SimplePV(pv, plane)]),
                       IdealStorage(size)])
+        print SHS.network.nodes()
         for r in eere.EPWdata('418830'):
             env.update_time(r['datetime'])
             SHS()
+        print load.enabled()
+        print sum(load.balance.values())
+        print id(load)
         print SHS.details()
         return SHS
 
@@ -126,9 +132,9 @@ class LolhMerit(object):
         return 'lolh_%s' % self.lolhcost
 
 
-class TMerit(object):
+class CarbonMerit(object):
 
-    """Example merit class based on Impact.
+    """Example merit class based on Carbon Impact.
 
     Merit is based on Minimum CO2 emissions and Loss of Load Hours (LOLH)
 
@@ -136,10 +142,12 @@ class TMerit(object):
 
     def __init__(self):
         pass
+        # .543 kg/kWh
+        self.penalty = .543/1000.0 * 5  # 5 year life
 
     def __call__(self, domain):
-        total = domain.co2() * (1+domain.lolh)
-        print total
+        total = domain.co2() - domain.shortfall * self.penalty
+        print total, domain.shortfall*self.penalty
         return total
 
     def __repr__(self):
@@ -163,7 +171,7 @@ def mppt(load, merit):
     """
     case1 = Case(MPPTChargeController, merit, load)
     # initial guess
-    x0 = np.array([180., 110.])
+    x0 = np.array([80., 60.])
     # r = optimize.basinhopping(case1, x0, niter=3)
     r = optimize.minimize(case1, x0)
     print r
@@ -202,8 +210,8 @@ if __name__ == '__main__':
     import loads
     env.set_weather(eere.EPWdata('418830'))
     merit = LolhMerit(1.0)
-    mppt(loads.BD_AVE, merit)
-    # mppt(annual(), merit)
+    merit = CarbonMerit()
+    mppt(loads.Annual, merit)
     #mppt(annual(), merit)
     # simple(annual, merit)
     # merit = LolhMerit(0.07)
