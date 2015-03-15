@@ -1,3 +1,6 @@
+# Copyright (C) 2015 Nathan Charles
+#
+# This program is free software. See terms in LICENSE file.
 """Typical Loads.
 
 This Module contains various example loads.
@@ -94,7 +97,7 @@ class Load(Device):
 
     def droopable(self):
         """Returns: (float) droopable ratio of desired energy."""
-        return 0.
+        return self.droop_ratio
 
 
 class Annual(Load):
@@ -194,6 +197,7 @@ class FanLoad(Load):
         self.wattage = -wattage
         self.thermostat = thermostat
         self.per_kwh = 0.075
+        self.droop_ratio = 0.
         self.dmnd = {}
         self.balance = {}
         self.interval = 24*265.
@@ -215,6 +219,53 @@ class FanLoad(Load):
 
     def __repr__(self):
         return '%s W Fan' % self.wattage
+
+
+class LightingLoad(Load):
+
+    """Lighting Load.
+
+    Atributes:
+        wattage (float): in negative wH.
+        lux (float): setting lux
+        hour (float): do not turn on before this hour.
+        per_kwh (float): value of kWh.
+    """
+
+    def __init__(self, wattage, lux=400., hour=12.):
+        """Initialize.
+
+        Args:
+            wattage (float): W
+            thermostat (float): W
+        """
+        self.wattage = - abs(wattage) # ensure negative
+        self.lux = lux
+        self.per_kwh = 0.075
+        self.dmnd = {}
+        self.droop_ratio = 0.
+        self.hour = hour
+        self.balance = {}
+        self.interval = 24*265.
+
+    def demand(self, key):
+        """Demand returns (float) wH energy demand for (key)."""
+        if key not in self.dmnd:
+            if float(env.weather[key]["DFIL (lux)"]) < self.lux and \
+                    env.time > self.hour:
+                self.dmnd[key] = self.wattage
+            else:
+                self.dmnd[key] = 0.
+
+        return self.dmnd[key]
+
+    def total(self):
+        return sum(self.dmnd.values())
+
+    __call__ = demand
+
+    def __repr__(self):
+        return '%s W Lighting Load' % self.wattage
 
 
 class DailyLoad(Load):
