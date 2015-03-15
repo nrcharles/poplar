@@ -1,3 +1,6 @@
+# Copyright (C) 2015 Nathan Charles
+#
+# This program is free software. See terms in LICENSE file.
 import numpy as np
 
 class Counter(object):
