@@ -252,7 +252,7 @@ class LightingLoad(Load):
         """Demand returns (float) wH energy demand for (key)."""
         if key not in self.dmnd:
             if float(env.weather[key]["DFIL (lux)"]) < self.lux and \
-                    env.time > self.hour:
+                    env.time.hour > self.hour:
                 self.dmnd[key] = self.wattage
             else:
                 self.dmnd[key] = 0.
