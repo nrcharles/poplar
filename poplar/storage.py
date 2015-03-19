@@ -3,11 +3,10 @@
 # This program is free software. See terms in LICENSE file.
 import numpy as np
 import environment as env
-import networkx as nx
 from misc import significant
 from visuals import report as stor_rep
 
-from devices import Device, Domain
+from devices import Device, Gateway
 from econ import Bid, Offer
 
 
@@ -28,8 +27,10 @@ class FLA(object):
         self.co2_kg = 7.
         self.tox_kg = 8.
         self.density = 50.
+        self.life = 35.  # kWh/kg
         self.cost_kg = 4.5
-        self.cost_kwh = .13
+        self.cost_kwh = self.cost_kg/self.life  # ~.13
+        self.co2_kwh = self.co2_kg/self.life  # ~.2
 
 
 class IdealStorage(Device):
@@ -138,7 +139,7 @@ class IdealStorage(Device):
 
         if self.src_gateway(dest_id) is not self.dest_gateway(dest_id):
             for step in self.path(dest):
-                if type(step) is Domain:
+                if type(step) is Gateway:
                     if not step.export():
                         return None
 
@@ -181,6 +182,9 @@ class IdealStorage(Device):
         """
         prospective = self.throughput/1000.*self.chem.cost_kwh
         return prospective
+
+    def emissions(self):
+        return self.throughput/1000.*self.chem.co2_kwh
 
     def power_io(self, power, hours=1.):
         """Power input/output
