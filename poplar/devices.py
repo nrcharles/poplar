@@ -10,8 +10,7 @@ logger = logging.getLogger(__name__)
 
 SMALL_ID = Counter()
 
-
-class Seed(object):
+class Model(object):
     def graph(self):
         """Device Graph of all decendants.
 
@@ -23,13 +22,15 @@ class Seed(object):
 
         if not hasattr(self, 'network'):
             # find an existing network graph
-            if env.network:
-                self.network = env.network
-                self.network.add_node(self)
+            if hasattr(self, 'children'):
+                for i in self.children:
+                    self.network = i.graph()
+                    self.network.add_node(self)
+                    self.network.add_edge(self, i)
+                    break
             else:
                 self.network = nx.Graph()
                 self.network.add_node(self)
-                env.network = self.network
 
         if hasattr(self, 'children'):
             for i in self.children:
@@ -45,40 +46,6 @@ class Seed(object):
 
         return self.network
 
-    def connected_domains(self):
-        # isdomain = lambda x: (type(x) is Domain) and (x is not self)
-        isdomain = lambda x: (type(x) is Domain)
-        return filter(isdomain, self.network)
-
-    def dest_gateway(self, obj_id):
-        """find dest obj_id's input gateway
-
-        Returns:
-            Domain
-        """
-
-        node = self.find_node(obj_id)
-        for step in reversed(self.path(node)):
-            if type(step) is Domain:
-                return step
-        print 'dest', obj_id, 'self', id(self)
-        print self.path(node)
-        raise KeyError('Gateway for %s not found' % obj_id)
-
-    def src_gateway(self, obj_id):
-        """find output gateway from self to dest obj_id
-
-        Returns:
-            Domain
-        """
-        node = self.find_node(obj_id)
-        for step in self.path(node):
-            if type(step) is Domain:
-                return step
-        print obj_id, id(self)
-        print self.path(node)
-        raise KeyError('Gateway for %s not found' % obj_id)
-
     def find_node(self, obj_id):
         for node in self.network:
             if id(node) == obj_id:
@@ -92,7 +59,7 @@ class Seed(object):
         return nx.shortest_path(self.network, self, node)
 
 
-class Device(Seed):
+class Device(Model):
 
     """
     Device LCA Object.
@@ -170,13 +137,46 @@ class Device(Seed):
         """
         return self.parameter('area')
 
+    def connected_domains(self):
+        # isdomain = lambda x: (type(x) is Domain) and (x is not self)
+        isdomain = lambda x: (type(x) is Gateway)
+        return filter(isdomain, self.network)
+
+    def dest_gateway(self, obj_id):
+        """find dest obj_id's input gateway
+
+        Returns:
+            Gateway
+        """
+
+        node = self.find_node(obj_id)
+        for step in reversed(self.path(node)):
+            if type(step) is Gateway:
+                return step
+        print 'dest', obj_id, 'self', id(self)
+        print self.path(node)
+        raise KeyError('Gateway for %s not found' % obj_id)
+
+    def src_gateway(self, obj_id):
+        """find output gateway from self to dest obj_id
+
+        Returns:
+            Gateway
+        """
+        node = self.find_node(obj_id)
+        for step in self.path(node):
+            if type(step) is Gateway:
+                return step
+        print obj_id, id(self)
+        print self.path(node)
+        raise KeyError('Gateway for %s not found' % obj_id)
+
     def __repr__(self):
         return 'Device'
 
+class Gateway(Device):
 
-class Domain(Device):
-
-    """Base Domain Class.
+    """Base Gateway Class.
 
     Attributes:
         g: (list) total gen delivered to domain.
@@ -304,6 +304,7 @@ class Domain(Device):
             'Toxicity (CTUh)': significant(self.tox()),
             'CO2 (kgCO2 eq)': significant(self.co2()),
             'Domain Efficiency (%)': significant(self.eta()*100),
+            't': self.cost() + self.depletion()*5 + self.co2() + self.parameter('emissions')*5 - self.shortfall,
             'STC (w)': self.STC()
         }
         return results
@@ -324,7 +325,7 @@ class Domain(Device):
     def reconcile(self):
         key = env.time
         for child in self.children:
-            if type(child) == Domain:
+            if type(child) == Gateway:
                 # print self.balance[key], self.credits[key],
                 # self.debits[key], self.balance[key]
                 if self.balance[key]:
@@ -383,7 +384,7 @@ class Domain(Device):
     def calc(self, hours=1.0):
         """Calculate energy.
 
-        Domains behave like a an energy market, excess energy is are transfered
+        Gateways behave like an energy market, excess energy is are transfered
         to the device with the highest bid and energy shortfalls are covered
         from the device with the lowest offer.
 
@@ -438,14 +439,14 @@ class Domain(Device):
     def needsenergy(self):
         e = 0
         for i in self.children:
-            if hasattr(i, 'needsenergy') and type(i) is not Domain:
+            if hasattr(i, 'needsenergy') and type(i) is not Gateway:
                 e += i.needsenergy()
         return e
 
     def hasenergy(self):
         e = 0
         for i in self.children:
-            if hasattr(i, 'hasenergy') and type(i) is not Domain:
+            if hasattr(i, 'hasenergy') and type(i) is not Gateway:
                 e += i.hasenergy()
         return e
 
@@ -454,7 +455,7 @@ class Domain(Device):
         e = 0.
         d = 0.
         for i in self.children:
-            if hasattr(i, 'needsenergy') and type(i) is not Domain:
+            if hasattr(i, 'needsenergy') and type(i) is not Gateway:
                 ce = i.needsenergy()
                 cd = i.droopable()
                 d += ce*cd
@@ -472,7 +473,7 @@ class Domain(Device):
         c = 0.
         # return 0.
         for i in self.children:
-            if hasattr(i, 'hasenergy') and type(i) is not Domain:
+            if hasattr(i, 'hasenergy') and type(i) is not Gateway:
                 ce = i.hasenergy()
                 cc = i.curtailment_ratio()
                 c += ce*cc
