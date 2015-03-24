@@ -25,6 +25,11 @@ It depends on several external libraries including solpy and caelum.
 .. _caelum: https://github.com/nrcharles/caelum
 
 
+poplar runs on linux and OS X systems with a working python 2.7 and pip
+installation.  From the source directory type:
+
+    $ sudo python setup.py install
+
 
 .. toctree::
    :maxdepth: 2
