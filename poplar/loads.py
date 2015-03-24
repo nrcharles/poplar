@@ -66,7 +66,9 @@ class Load(Device):
         """Returns: (float): energy need"""
         key = env.time
         if key not in self.balance:
-            self.balance[key] = self.demand(key)
+            dmnd = self.demand(key)
+            self.balance[key] = dmnd
+            self.dmnd[key] = dmnd
         return self.balance[key]
 
     def power_io(self, energy):
@@ -131,6 +133,7 @@ class Annual(Load):
         self.data = _load()
         self.small_id = SMALL_ID.next(type(self))
         self.balance = {}
+        self.dmnd = {}
         self.detail = None
         self.interval = 365*24.
 
@@ -295,6 +298,7 @@ class DailyLoad(Load):
         self.per_kwh = 0.07
         self.small_id = SMALL_ID.next(name)
         self.balance = {}
+        self.dmnd = {}
         self.interval = 24.
 
     def demand(self, dt):
