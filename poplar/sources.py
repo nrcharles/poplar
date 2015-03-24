@@ -1,6 +1,6 @@
 import environment as env
 import logging
-from devices import Device, Seed
+from devices import Device, Model
 from solpy import irradiation
 from misc import significant, module_temp
 from econ import Offer
@@ -21,7 +21,9 @@ class Source(Device):
 
     def energy(self):
         if not env.time in self.balance:
-            self.balance[env.time] = self.output()
+            output = self.output()
+            self.balance[env.time] = output
+            self.generation[env.time] = output
         return self.balance[env.time]
 
 
@@ -57,7 +59,8 @@ class Source(Device):
         return 0.
 
     def total_gen(self):
-        return sum(self.balance.values()) - sum(self.debits.values()) + self.losses()
+        return sum(self.generation.values())
+        #return sum(self.balance.values()) - sum(self.debits.values()) + self.losses()
 
 class SimplePV(Device):
 
@@ -191,7 +194,7 @@ class SimplePV(Device):
         return '%s W PV' % significant(self.stc)
 
 
-class Site(Seed):
+class Site(Model):
 
     """
 
