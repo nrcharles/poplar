@@ -10,7 +10,9 @@ logger = logging.getLogger(__name__)
 
 SMALL_ID = Counter()
 
+
 class Model(object):
+    """Base object class."""
     def graph(self):
         """Device Graph of all decendants.
 
@@ -51,11 +53,12 @@ class Model(object):
             if id(node) == obj_id:
                 return node
         for i in self.network:
-            print i, id(i)
+            print('%s,%s' % (i, id(i)))
 
         raise KeyError('Node %s not found' % obj_id)
 
     def path(self, node):
+        """Shortest path to node."""
         return nx.shortest_path(self.network, self, node)
 
 
@@ -174,6 +177,7 @@ class Device(Model):
     def __repr__(self):
         return 'Device'
 
+
 class Gateway(Device):
 
     """Base Gateway Class.
@@ -195,7 +199,7 @@ class Gateway(Device):
         Args:
             children (list): loads, storage, and generation
         """
-        # super(Device, self).__init__()
+        super(Gateway, self).__init__()
         self.children = children
         self.small_id = SMALL_ID.next(type(self))
         self.g = []
@@ -206,8 +210,8 @@ class Gateway(Device):
         self.time_series = []
         self.net_g = []  # used generation
         self.net_l = []  # enabled load
-        self.surplus = 0.
         self.shortfall = 0.
+        self.domain_r = 1.
         self.credits = {}
         self.debits = {}
         self.balance = {}
@@ -215,7 +219,6 @@ class Gateway(Device):
         self.outage = {}
         self.source = {}
         self.lolh = 0.
-        self.r = 1.
         self.network = self.graph()
         self.export_power = True
 
@@ -229,8 +232,17 @@ class Gateway(Device):
 
         """
         # g_ave = sum(self.g)/len(self.g)
-        l_median = np.median(self.log_dict_to_list('demand'))
-        return self.capacity()/l_median  # hours
+        # todo: this could be improved
+        net_l = 0.
+        capacity = 0.
+
+        for node in self.network.neighbors(self):
+            if hasattr(node, 'dmnd') and type(node) is not Gateway:
+                # net_l += np.median(node.dmnd.values())
+                net_l += abs(np.mean(node.dmnd.values()))
+            if hasattr(node, 'nominal_capacity'):
+                capacity += node.nominal_capacity
+        return capacity / net_l
 
     def report(self):
         return multi_report(self, str(self))
@@ -278,7 +290,7 @@ class Gateway(Device):
         return self.export_power
 
     def log_dict_to_list(self, log_dict, default=0):
-        return [getattr(self, log_dict).setdefault(i,default)
+        return [getattr(self, log_dict).setdefault(i, default)
                 for i in self.time_series]
 
     def details(self):
@@ -286,14 +298,17 @@ class Gateway(Device):
         results = {
             'Demand (wh)': significant(sum(self.log_dict_to_list('demand'))),
             'Net (wh)': significant(sum(self.log_dict_to_list('balance'))),
-            'Domain Sources(wh)': significant(sum(self.log_dict_to_list('source'))),
-            'Domain credits(wh)': significant(sum(self.log_dict_to_list('credits'))),
-            'Domain debits(wh)': significant(sum(self.log_dict_to_list('debits'))),
+            'Domain Sources(wh)':
+                significant(sum(self.log_dict_to_list('source'))),
+            'Domain credits(wh)':
+                significant(sum(self.log_dict_to_list('credits'))),
+            'Domain debits(wh)':
+                significant(sum(self.log_dict_to_list('debits'))),
             'Domain Generation losses (wh)':
             significant(self.parameter('losses')),
-            # 'Autonomy (hours) (Median Load/C)': significant(self.autonomy()),
+            'Autonomy (hours) (mean load/C)': significant(self.autonomy()),
             # 'Capacity Factor (%)': significant(self.capacity_factor()*100.),
-            'Domain surplus (Wh)': significant(self.surplus),
+            'Domain surplus (Wh)': significant(self.surplus()),
             # 'Domain Generation (Wh)': significant(sum(self.g)),
             'Domain Parts (USD)': significant(self.cost()),
             'Domain depletion (USD)': significant(self.depletion()),
@@ -301,10 +316,14 @@ class Gateway(Device):
             'Domain outages (n)': significant(sum(self.outage.values())),
             'Domain shortfall (wH)': significant(self.shortfall),
             'A (m2)': significant(self.parameter('area')),
-            'Toxicity (CTUh)': significant(self.tox()),
+            # 'Toxicity (CTUh)': significant(self.tox()),
             'CO2 (kgCO2 eq)': significant(self.co2()),
             'Domain Efficiency (%)': significant(self.eta()*100),
-            't': self.cost() + self.depletion()*5 + self.co2() + self.parameter('emissions')*5 - self.shortfall,
+            'Merit (STEEP)': significant(self.cost() +
+                                         self.depletion()*5 +
+                                         self.co2() +
+                                         self.parameter('emissions')*5 -
+                                         self.rvalue()),
             'STC (w)': self.STC()
         }
         return results
@@ -345,7 +364,7 @@ class Gateway(Device):
         self.credits[key] += delta
         # subtract from offer source
         source = self.find_node(offer.obj_id)
-        source.power_io(-delta )
+        source.power_io(-delta)
         source_domain = self.dest_gateway(offer.obj_id)
         source_domain.debits[key] -= delta
         source_domain.balance[key] -= delta
@@ -375,9 +394,9 @@ class Gateway(Device):
             self.outage[env.time] = 1
             self.shortfall += node.needsenergy()
             # todo: there might be a bug here
-            # self.lolh += self.timestep - (initial_demand - node.needsenergy())\
+            # self.lolh += self.timestep - (initial_demand-node.needsenergy())\
             self.lolh += self.timestep - (initial_demand - self.demand[key]) \
-                    /initial_demand * self.timestep
+                / initial_demand * self.timestep
             return False
         return True
 
@@ -484,11 +503,22 @@ class Gateway(Device):
         else:
             return 0.
 
+    def surplus(self):
+        g = 0
+        for i in self.network.neighbors(self):
+            if hasattr(i, 'generation') and type(i) is not Gateway:
+                g += sum(i.balance.values())
+        return g
+
     def depletion(self):
         return self.parameter('depletion')
 
     def rvalue(self):
-        return self.r*self.outages
+        r = 0
+        for i in self.network:
+            if type(i) is Gateway:
+                r += i.shortfall*i.domain_r
+        return r
 
     __call__ = calc
 
