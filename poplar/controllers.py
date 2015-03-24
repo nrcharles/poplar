@@ -1,12 +1,14 @@
 # Copyright (C) 2015 Nathan Charles
 #
 # This program is free software. See terms in LICENSE file.
+"""Charge Controller Class."""
 from misc import significant
 from sources import Source
 
 
 class ChargeController(Source):
-    """Ideal Charge Controller
+
+    """Ideal Charge Controller.
 
     Attributes:
         loss (float): cumulative energy losses (Wh).
@@ -14,19 +16,29 @@ class ChargeController(Source):
         cost (float): device cost.
 
     """
+
     def __init__(self, array_like):
+        """Initialize.
+
+        Args:
+            array_like (list): list of DC sources.
+        """
+        self.generation = {}
         self.balance = {}
         self.children = array_like
         self.debits = {}
+        self.gen = True
+        self.loss = 0.
         self.device_cost = 10.
         self.device_tox = 3.  # todo: placeholder value
         self.device_co2 = 5.  # todo: placeholder value
-        self.gen = True
 
     def losses(self):
+        """Return total losses."""
         return self.loss
 
     def nameplate(self):
+        """Return total nameplate."""
         return sum([i.nameplate() for i in self.children])
 
     def output(self):
@@ -55,7 +67,8 @@ class ChargeController(Source):
 
 
 class MPPTChargeController(ChargeController):
-    """MPPT Charge Controller
+
+    """MPPT Charge Controller.
 
     Attributes:
         loss: (float) cumulative energy losses (Wh).
@@ -66,24 +79,21 @@ class MPPTChargeController(ChargeController):
     Note: Assumes Linear efficiency curve
 
     """
+
     def __init__(self, array_like, efficiency=.95):
         """
         Args:
             children: (array_like) PV array.
             efficiency: (float) energy conversion efficiency.
         """
-        self.balance = {}
-        self.children = array_like
-        self.debits = {}
+        super(MPPTChargeController, self).__init__(array_like)
         self.device_cost = 10.
         self.device_tox = 3.
         self.device_co2 = 5.
         self.efficiency = efficiency
-        self.gen = True
-        self.loss = 0.
 
     def output(self):
-        """Output of MPPT charge controller
+        """Output of MPPT charge controller.
 
         Args:
             irr (float): irradiance W/m^2 or irradiation in Wh/m^2.
@@ -114,7 +124,8 @@ class MPPTChargeController(ChargeController):
 
 
 class SimpleChargeController(ChargeController):
-    """Simple Charge Controller
+
+    """Simple Charge Controller.
 
     Attributes:
         loss: (float) cumulative energy losses (Wh).
@@ -124,17 +135,15 @@ class SimpleChargeController(ChargeController):
     Note: Assumes output clipped to bus voltage vnom
 
     """
-    def __init__(self, children, vnom=12.5):
-        """
+
+    def __init__(self, array_like, vnom=12.5):
+        """Initilize.
+
         Args:
             children: (array_like) PV array.
             vnom: (float) nominal bus voltage in (Volts) default 12.5.
         """
-        self.balance = {}
-        self.children = children
-        self.debits = {}
-        self.gen = True
-        self.loss = 0
+        super(SimpleChargeController, self).__init__(array_like)
         self.vnom = vnom
         self.device_cost = 7.
         self.device_tox = 3.
