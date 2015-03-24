@@ -4,27 +4,19 @@ Adjust battery capacity and pv size to minimize price of a Solar Home System
 for a location.
 
 """
+
 import environment as env
 import copy
 import logging
 logging.basicConfig(level=logging.ERROR)
-from devices import Domain
+from devices import Gateway
 from sources import SimplePV, Site, InclinedPlane
 from storage import IdealStorage
 from controllers import MPPTChargeController, SimpleChargeController
 from caelum import eere
 import numpy as np
 from scipy import optimize
-
-# Parameters that could be tested
-# battery chemistry LA,LI
-# charge controller Simple, MPPT
-# reliablity domains
-# Reliabilty Domain via Droop control based Active Demand Side Management
-# net metering
-# various load profiles
-# enhanced DSM
-# tilt & azimuth
+import sys
 
 
 class Case(object):
@@ -54,6 +46,7 @@ class Case(object):
         self.tilt = 24.81  # array tilted at latitude
         self.azimuth = 180.  # array pointed due south
         self.weather_station = '418830'
+        self.foo = open('log.csv', 'w')
 
     def model(self, parameters):
         """Model a year of data for a location.
@@ -70,9 +63,9 @@ class Case(object):
         pv = max(pv, 1.)
         size = max(size, 1.)
 
-        plane = InclinedPlane(Site(self.place),self.tilt, self.azimuth)
+        plane = InclinedPlane(Site(self.place), self.tilt, self.azimuth)
         load = self.load()
-        SHS = Domain([load,
+        SHS = Gateway([load,
                       self.cc([SimplePV(pv, plane)]),
                       IdealStorage(size)])
         print SHS.network.nodes()
@@ -82,7 +75,10 @@ class Case(object):
         print load.enabled()
         print sum(load.balance.values())
         print id(load)
-        print SHS.details()
+        d = SHS.details()
+        print d
+        self.foo.write('%s,%s,%s\n' % (size, pv, d['t']))
+        # self.foo.flush()
         return SHS
 
     # default method
@@ -132,7 +128,7 @@ class LolhMerit(object):
         return 'lolh_%s' % self.lolhcost
 
 
-class CarbonMerit(object):
+class TotalMerit(object):
 
     """Example merit class based on Carbon Impact.
 
@@ -146,8 +142,9 @@ class CarbonMerit(object):
         self.penalty = .543/1000.0 * 5  # 5 year life
 
     def __call__(self, domain):
-        total = domain.co2() - domain.shortfall * self.penalty
-        print total, domain.shortfall*self.penalty
+        total = domain.details()['t']
+        print total, domain.cost(), domain.depletion()*5, domain.shortfall, \
+            domain.co2(), domain.parameter('emissions')*5
         return total
 
     def __repr__(self):
@@ -172,8 +169,12 @@ def mppt(load, merit):
     case1 = Case(MPPTChargeController, merit, load)
     # initial guess
     x0 = np.array([80., 60.])
-    # r = optimize.basinhopping(case1, x0, niter=3)
-    r = optimize.minimize(case1, x0)
+
+    # minimizer_kwargs={'method':'SLSQP','options':{'disp':True}})
+    # r = optimize.basinhopping(case1, x0, disp=True,
+    # minimizer_kwargs={'method':'SLSQP','args':('options',{'disp':True})})
+    r = optimize.minimize(case1, x0, options={'disp': True}, bounds=[[5, None],
+                          [5, None]], method='SLSQP')
     print r
     s, p = r['x']
     tex_tab, tex_fig = case1.model((s, p)).report()
@@ -197,7 +198,7 @@ def simple(load, merit):
     """
     case1 = Case(SimpleChargeController, merit, load)
     # initial guess
-    x0 = np.array([180., 110.])
+    x0 = np.array([200., 98.])
     # Basin-hopping is a stochastic algorithm which attempts to find the global
     # minimum of a smooth scalar function of one or more variables
     r = optimize.minimize(case1, x0)
@@ -209,10 +210,10 @@ def simple(load, merit):
 if __name__ == '__main__':
     import loads
     env.set_weather(eere.EPWdata('418830'))
-    merit = LolhMerit(1.0)
-    merit = CarbonMerit()
+    # merit = LolhMerit(1.0)
+    merit = TotalMerit()
     mppt(loads.Annual, merit)
-    #mppt(annual(), merit)
+    # mppt(annual(), merit)
     # simple(annual, merit)
     # merit = LolhMerit(0.07)
     # mppt(annual, merit)
