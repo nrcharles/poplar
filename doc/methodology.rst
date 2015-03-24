@@ -56,7 +56,7 @@ value.
 ..  How do I resolve equal value? is it important?
 
 
-Storage in a domain must be valued similarly but less the the desired end use and higher than less valued energy end uses.
+Storage in a domain must be valued similarly but less than desired end use and higher than less valued energy end uses.
 
 .. graphviz:: market.gv
 
@@ -65,7 +65,7 @@ Storage in a domain must be valued similarly but less the the desired end use an
 
 
 .. literalinclude:: ../poplar/devices.py
-   :pyobject: Domain.transaction
+   :pyobject: Gateway.transaction
 
 [Domain accounting]
 
