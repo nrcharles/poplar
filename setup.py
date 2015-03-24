@@ -2,6 +2,7 @@
 #
 # This program is free software. See terms in LICENSE file.
 """install"""
+from __future__ import absolute_import
 import os
 from setuptools import setup, find_packages
 import datetime
