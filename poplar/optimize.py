@@ -16,7 +16,6 @@ from controllers import MPPTChargeController, SimpleChargeController
 from caelum import eere
 import numpy as np
 from scipy import optimize
-import sys
 
 
 class Case(object):
@@ -76,79 +75,13 @@ class Case(object):
         print sum(load.balance.values())
         print id(load)
         d = SHS.details()
+        print 'id', id(SHS)
         print d
-        self.foo.write('%s,%s,%s\n' % (size, pv, d['t']))
-        # self.foo.flush()
+        self.foo.write('%s,%s,%s\n' % (size, pv, SHS.merit()))
+        self.foo.flush()
         return SHS
 
-    # default method
-    __call__ = lambda self, x: merit(self.model(x))
-
-
-class EnergyMerit(object):
-
-    """Example merit class based on Energy Shortfall.
-
-    Merit is based on Minimum Price with Energy having a kWh cost.
-
-    """
-
-    def __init__(self, lolhcost):
-        self.lolhcost = lolhcost
-
-    def __call__(self, domain):
-        total = domain.cost() + domain.depletion() \
-            + domain.shortfall * self.lolhcost
-        print domain.shortfall, total
-        return total
-
-    def __repr__(self):
-        return 'energy_%s' % self.lolhcost
-
-
-class LolhMerit(object):
-
-    """Example merit class based on Loss of Load Hours.
-
-    Merit is based on Minimum Price with Loss of Load Hours (LOLH) having a
-    cost per hour.
-
-    """
-
-    def __init__(self, lolhcost):
-        self.lolhcost = lolhcost
-
-    def __call__(self, domain):
-        total = domain.cost() + domain.depletion() \
-            + domain.lolh * self.lolhcost
-        print domain.lolh, total
-        return total
-
-    def __repr__(self):
-        return 'lolh_%s' % self.lolhcost
-
-
-class TotalMerit(object):
-
-    """Example merit class based on Carbon Impact.
-
-    Merit is based on Minimum CO2 emissions and Loss of Load Hours (LOLH)
-
-    """
-
-    def __init__(self):
-        pass
-        # .543 kg/kWh
-        self.penalty = .543/1000.0 * 5  # 5 year life
-
-    def __call__(self, domain):
-        total = domain.details()['t']
-        print total, domain.cost(), domain.depletion()*5, domain.shortfall, \
-            domain.co2(), domain.parameter('emissions')*5
-        return total
-
-    def __repr__(self):
-        return 'test_merit'
+    __call__ = lambda self, x: self.merit(self.model(x))
 
 
 def mppt(load, merit):
@@ -168,12 +101,13 @@ def mppt(load, merit):
     """
     case1 = Case(MPPTChargeController, merit, load)
     # initial guess
-    x0 = np.array([80., 60.])
+    x0 = np.array([100., 60.])
 
     # minimizer_kwargs={'method':'SLSQP','options':{'disp':True}})
-    # r = optimize.basinhopping(case1, x0, disp=True,
-    # minimizer_kwargs={'method':'SLSQP','args':('options',{'disp':True})})
-    r = optimize.minimize(case1, x0, options={'disp': True}, bounds=[[5, None],
+    # r = optimize.basinhopping(case1, x0, disp=True, stepsize=1.0,
+    #    minimizer_kwargs={'method':'SLSQP'})
+    r = optimize.minimize(case1, x0,  options={'disp': True},
+                          bounds=[[5, None],
                           [5, None]], method='SLSQP')
     print r
     s, p = r['x']
@@ -197,10 +131,7 @@ def simple(load, merit):
 
     """
     case1 = Case(SimpleChargeController, merit, load)
-    # initial guess
     x0 = np.array([200., 98.])
-    # Basin-hopping is a stochastic algorithm which attempts to find the global
-    # minimum of a smooth scalar function of one or more variables
     r = optimize.minimize(case1, x0)
     print r
     s, p = r['x']
@@ -209,11 +140,7 @@ def simple(load, merit):
 
 if __name__ == '__main__':
     import loads
+    import merit
     env.set_weather(eere.EPWdata('418830'))
-    # merit = LolhMerit(1.0)
-    merit = TotalMerit()
-    mppt(loads.Annual, merit)
-    # mppt(annual(), merit)
-    # simple(annual, merit)
-    # merit = LolhMerit(0.07)
-    # mppt(annual, merit)
+    steep = merit.STEEPMerit()
+    mppt(loads.Annual, steep)
