@@ -40,6 +40,19 @@ Storage
 .. automodule:: storage
    :members:
 
+Econ
+----
+
+.. automodule:: econ
+   :members:
+
+Merit
+-----
+
+.. automodule:: merit
+   :members:
+
+
 Misc
 ----
 Miscellaneous functions that don't obviously belong elsewhere.
