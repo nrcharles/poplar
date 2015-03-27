@@ -31,7 +31,7 @@ class ChargeController(Source):
         self.loss = 0.
         self.device_cost = 10.
         self.device_tox = 3.  # todo: placeholder value
-        self.device_co2 = 5.  # todo: placeholder value
+        self.device_co2 = 60.  # todo: placeholder value
 
     def losses(self):
         """Return total losses."""
@@ -89,7 +89,7 @@ class MPPTChargeController(ChargeController):
         super(MPPTChargeController, self).__init__(array_like)
         self.device_cost = 10.
         self.device_tox = 3.
-        self.device_co2 = 5.
+        self.device_co2 = 60.
         self.efficiency = efficiency
 
     def output(self):
@@ -147,7 +147,7 @@ class SimpleChargeController(ChargeController):
         self.vnom = vnom
         self.device_cost = 7.
         self.device_tox = 3.
-        self.device_co2 = 5.
+        self.device_co2 = 60.
 
     def output(self):
         """Output of Simple charge controller.
