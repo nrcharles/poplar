@@ -2,8 +2,9 @@ import numpy as np
 import networkx as nx
 import environment as env
 from misc import significant, Counter
-from econ import high_bid, low_offer, rank_bids
+from econ import low_offer, rank_bids
 from visuals import multi_report
+from merit import STEEPMerit
 
 import logging
 logger = logging.getLogger(__name__)
@@ -81,10 +82,12 @@ class Device(Model):
     def __init__(self):
         """Method should be overridden."""
         self.children = []
+        # todo: should I put these device attributes in a dict.
         self.device_cost = 0.
         self.device_tox = 0.
         self.device_co2 = 0.
         self.device_area = 0.
+        self.name = 'Device'
 
     def parameter(self, name):
         """Default parameter method.
@@ -107,6 +110,7 @@ class Device(Model):
         if hasattr(self, 'device_%s' % name):
             v += getattr(self, 'device_%s' % name)
         return v
+
 
     def co2(self):
         """CO2 eq footprint.
@@ -175,7 +179,7 @@ class Device(Model):
         raise KeyError('Gateway for %s not found' % obj_id)
 
     def __repr__(self):
-        return 'Device'
+        return self.name
 
 
 class Gateway(Device):
@@ -193,7 +197,7 @@ class Gateway(Device):
         shortfall: (float) total energy shortfall (wH).
     """
 
-    def __init__(self, children=None):
+    def __init__(self, children=None, merit=None):
         """Should have at least one child but should probably have two.
 
         Args:
@@ -221,6 +225,10 @@ class Gateway(Device):
         self.lolh = 0.
         self.network = self.graph()
         self.export_power = True
+        if merit is None:
+            self.system_merit = STEEPMerit()
+        else:
+            self.system_merit = merit
 
     def autonomy(self):
         """Calculate domain autonomy.
@@ -319,14 +327,14 @@ class Gateway(Device):
             # 'Toxicity (CTUh)': significant(self.tox()),
             'CO2 (kgCO2 eq)': significant(self.co2()),
             'Domain Efficiency (%)': significant(self.eta()*100),
-            'Merit (STEEP)': significant(self.cost() +
-                                         self.depletion()*5 +
-                                         self.co2() +
-                                         self.parameter('emissions')*5 -
-                                         self.rvalue()),
+            '%s' % str(self.system_merit): significant(self.merit()),
             'STC (w)': self.STC()
         }
         return results
+
+    def merit(self):
+
+        return self.system_merit(self)
 
     def STC(self):
         """STC nameplate rating of all generation in domain."""
