@@ -1,6 +1,8 @@
 # Copyright (C) 2015 Nathan Charles
 #
 # This program is free software. See terms in LICENSE file.
+"""Economic related functions."""
+
 from __future__ import division
 from misc import significant
 import math
@@ -19,8 +21,19 @@ REGULATION_PRICE = 60.  # $/MW/hour
 p = lambda x, m, b: math.ceil(x/m)*(VOLUME_CONSTANT*math.log(math.ceil(x/m))+b)
 # Where x is kwh, m is increment size and b is price floor constant
 
+
 class Bid(object):
+
+    """Bid Class."""
+
     def __init__(self, obj_id, wh, value):
+        """Initialize.
+
+        Args:
+            obj_id (int): of device from which bid came.
+            wh (float): amount of needed.
+            value (float): at which energy will be bought.
+        """
         self.obj_id = obj_id
         self.value = value
         self.wh = wh
@@ -31,7 +44,17 @@ class Bid(object):
 
 
 class Offer(object):
+
+    """Offer class."""
+
     def __init__(self, obj_id, wh, value):
+        """Initialize.
+
+        Args:
+            obj_id (int): of device from which offer came.
+            wh (float): of energy needed.
+            value (float): at which energy will be sold.
+        """
         self.obj_id = obj_id
         self.value = value
         self.wh = wh
@@ -42,7 +65,7 @@ class Offer(object):
 
 
 def high_bid(nodes, offer=None):
-    if offer == None:
+    if offer is None:
         offer = Offer(0, 0, 0)
     high_bid = None
     bid_value = 0.
@@ -50,7 +73,7 @@ def high_bid(nodes, offer=None):
         if hasattr(node, 'bid'):
             bid = node.bid()
             if bid:
-                logger.debug('bid %s',bid)
+                logger.debug('bid %s', bid)
                 if (bid.value > bid_value) \
                     and (bid.obj_id != offer.obj_id) \
                     and not (bid.storage and offer.storage):
@@ -59,7 +82,9 @@ def high_bid(nodes, offer=None):
                     high_bid = bid
     return high_bid
 
+
 def rank_bids(nodes):
+    """Get and rand in order of priority, high to low."""
     bids = []
     for node in nodes:
         if hasattr(node, 'bid'):
@@ -70,8 +95,10 @@ def rank_bids(nodes):
     bids.sort(key=lambda x: x.value, reverse=True)
     return bids
 
+
 def low_offer(nodes, bid):
-    if bid == None:
+    """Find lowest offer for bid."""
+    if bid is None:
         bid = Bid(0, 0, 0)
     low_offer = None
     offer_value = 100.
@@ -88,7 +115,9 @@ def low_offer(nodes, bid):
                     offer_value = offer.value
     return low_offer
 
+
 def gini(list_of_values):
+    """Calculate Gini coefficient for list of values."""
     sorted_list = sorted(list_of_values)
     height, area = 0, 0
     for value in sorted_list:
@@ -99,10 +128,10 @@ def gini(list_of_values):
 
 
 def grid_value(domain):
-    """grid value in Virtual Power Plant in a mature market"""
+    """grid value in Virtual Power Plant in a mature market."""
 
     cap_w = domain.STC()*domain.capacity_factor()
-    cap_s = domain.capacity() # w assuming 1C discharge
+    cap_s = domain.capacity()  # w assuming 1C discharge
     e_v = domain.storage.surplus/1000. * .12
 
     cap_v = CAP_PRICE_MW_2018/1E6*cap_w*365.
@@ -119,11 +148,7 @@ def grid_value(domain):
 
 
 def scaling():
-    """Scaling various system types
-
-    This is interesting because it's step functions
-
-    """
+    """Plot scaling various system types."""
     fig = plt.figure(figsize=(8.5, 11))
     ax = fig.add_subplot(111)
     # ax.set_title('Storage Frequency Histogram')
