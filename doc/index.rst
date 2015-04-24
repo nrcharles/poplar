@@ -16,7 +16,7 @@ determine priorities and size and optimize photovoltaic solar
 energy systems designs, particularly those that integrate storage and demand
 side management devices.
 
-It depends on several external libraries including solpy and caelum.
+poplar depends on several external libraries including solpy and caelum.
 
 -   `solpy Documentation <http://solpy.readthedocs.org/>`_
 -   `caelum Documentation <http://nrcharles.github.io/caelum/>`_
@@ -34,9 +34,9 @@ installation.  From the source directory type:
 .. toctree::
    :maxdepth: 2
 
-   methodology
+   design
    code
-   optimize
+   usage
 
 
 Indices and tables
