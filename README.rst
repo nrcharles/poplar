@@ -1,9 +1,9 @@
-![alt text](https://github.com/nrcharles/poplar/raw/master/doc/balsmifera.png  "poplar logo")
+.. image:: https://github.com/nrcharles/poplar/raw/master/doc/balsmifera.png
 
 poplar
 ======
 
-![alt text](https://github.com/nrcharles/poplar/raw/master/doc/mult.png  "system example")
+.. image:: https://github.com/nrcharles/poplar/raw/master/doc/mult.png
 
 License
 =======
