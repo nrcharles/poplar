@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import scipy.stats as stats
 import numpy as np
 import networkx as nx
+import os
 from misc import heatmap, latexify, fsify
 
 
@@ -28,6 +29,25 @@ def table_dict(d):
         tab.append('%s%s\n' % (k.ljust(maxlen_k+1), d[k]))
     tab.append(sep)
     return tab
+
+def dict_to_latex_table(dictionary, caption, refname):
+
+    table_str = ("\\begin{table}\n"
+                 "\\centering\n"
+                 "\\captionof{table}{%s} \\label{tab:%s}\n"
+                 "\\begin{tabular}{@{}ll@{}}\n"
+                 "\\toprule\n"
+                 "Key & Value\\\\\n"
+                 "\\midrule\n") % (latexify(caption), refname)
+
+    for k in dictionary.iterkeys():
+        table_str += ("%s & %s \\\\\n" % (latexify(k), dictionary[k]))
+
+    table_str += ("\\bottomrule\n"
+                  "\\end{tabular}\n"
+                  "\\end{table}\n")
+
+    return table_str
 
 
 def report(device, figname='SHS', title=None):
@@ -101,6 +121,88 @@ def report(device, figname='SHS', title=None):
     fig.savefig('%s.pdf' % fsify(figname))
     return table_str, figure_str
 
+def freq_pdf(series, caption, basename):
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.set_xlabel('SoC')
+    ax.set_ylabel('Frequency')
+    # ax.set_title('Normalized SoC Histogram')
+    pp = np.array(series)
+    pp.sort()
+    fit = stats.norm.pdf(pp, np.mean(pp), np.std(pp))
+
+    ax.hist(series, 40, normed=True)
+    ax.plot(pp, fit)
+    filename = '%s.pdf' % basename
+    fig.savefig(filename)
+    print(latex_fig(filename, caption, basename))
+    del(fig)
+
+def latex_fig(filename, title, refname):
+
+    parent_directory = os.getcwd().split('/')[-1]
+    PATH = '../../src/python/poplar/doc/%s' % parent_directory
+
+    figure_str = ("\\begin{figure}\n"
+                  "\\centering\n"
+                  "\\includegraphics[width=0.5\\linewidth]{%s/%s}\n"
+                  "\\caption{%s} \\label{fig:%s}\n"
+                  "\\end{figure}\n") % (PATH, filename, latexify(title), refname)
+    return figure_str
+
+def batt_report(device):
+    """Generate a PDF report of a storage device
+
+    Args:
+        device (object):
+        figname (str):
+
+    """
+
+    basename = fsify(latexify(str(device)))
+
+    soc_log = device.soc_log()
+
+    freq_pdf(soc_log, 'Hourly SoC frequency %s' % str(device), 'hourly_soc_freq_%s' % basename)
+
+    heat_pdf(heatmap(soc_log), '%s Soc' % str(device), 'soc_%s' % basename)
+
+    freq_pdf([np.mean(soc_log[i:i+23]) for i in range(0, 365*24, 24)],
+             'Daily SoC frequency %s' % str(device),
+             'daily_soc_freq_%s' % basename)
+
+def heat_pdf(data, caption, basename):
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.set_xlabel('day')
+    ax.set_ylabel('hour')
+    #ax.set_title(title)
+    bc = ax.imshow(data, aspect='auto')
+    b4 = fig.colorbar(bc)
+    b4.set_label('Wh')
+    fig.tight_layout()
+    filename = '%s.pdf' % basename
+    fig.savefig(filename)
+    print(latex_fig(filename, caption, basename))
+    del(fig)
+
+def multi_pdfs(domain):
+    """Generate a PDF report of a domain
+
+    Args:
+        domain (object):
+        figname (str):
+
+    """
+
+    basename = fsify(str(domain))
+
+    for i in ['credits','debits','demand','source','balance']:
+        heat_pdf(heatmap(domain.log_dict_to_list(i)), '%s %s' %(str(domain), i), '%s_%s' % (i, basename))
+
+    print(dict_to_latex_table(domain.details(), str(domain), basename))
+
+
 def multi_report(domain, figname='SHS', title=None):
     """Generate a PDF report of a domain
 
@@ -119,7 +221,6 @@ def multi_report(domain, figname='SHS', title=None):
     s_constraint.set_ylabel('hour')
     s_constraint.set_title('Domain Credits')
     bc = s_constraint.imshow(heatmap(domain.log_dict_to_list('credits')), aspect='auto')
-    # cmap = plt.cm.Greys_r)
     b4 = fig.colorbar(bc)
     b4.set_label('Wh')
 
@@ -177,26 +278,6 @@ def multi_report(domain, figname='SHS', title=None):
                   "\\end{tabular}\n"
                   "\\end{table}\n")
 
-    domain_graph = fig.add_subplot(326)
-    G = domain.graph()
-    # pos = nx.spectral_layout(G)
-    pos = nx.spring_layout(G)
-    lpos = {}
-    for i in pos.iterkeys():
-        lpos[i] = pos[i] + [0, .15]
-    nx.draw_networkx_nodes(G, pos=pos, ax=domain_graph, node_size=200)
-    nx.draw_networkx_edges(G, pos=pos, ax=domain_graph)
-    ts = nx.draw_networkx_labels(G, pos=lpos, font_size=7)  # rotation=45)
-
-    for key in ts.iterkeys():
-        ts[key].set_rotation(45)
-
-    p = 1.2
-    x1, x2 = domain_graph.get_xlim()
-    y1, y2 = domain_graph.get_ylim()
-    domain_graph.set_xlim(x1*p, x2*p)
-    domain_graph.set_ylim(y1*p, y2*p)
-    domain_graph.axis('off')
     fig.tight_layout()
     fig.savefig('%s.pdf' % fsify(figname))
     return table_str, figure_str
@@ -225,6 +306,65 @@ def save_graph(domain, figname):
     domain_graph.axis('off')
     fig.tight_layout()
     fig.savefig('%s.pdf' % latexify(figname))
+
+
+def rst_domain(domain, title):
+    rst = []
+    # rst.write(':orphan:\n\n')
+    #tave_graph(domain, 'system_graph')
+    multi_pdfs(domain)
+    domain.report()
+    parent_directory = os.getcwd().split('/')[-1]
+    label = fsify(latexify(str(domain)))
+
+    fig_rst = ("\n\n"
+               ".. _%s:\n\n"
+               ".. figure:: %s/%s.pdf\n\n"
+               "   %s\n\n")
+
+    rst += (fig_rst % (label, parent_directory, label, title))
+
+    rst += (table_dict(domain.details()))
+
+
+    return rst
+
+def rst_graph(domain, title):
+    rst = []
+    # rst.write(':orphan:\n\n')
+    save_graph(domain, 'system_graph')
+
+    parent_directory = os.getcwd().split('/')[-1]
+
+    label = fsify(latexify(str(domain)))
+
+    graph_rst = ("\n\n"
+                 ".. _%s_graph:\n\n"
+                 ".. figure:: %s/system_graph.pdf\n\n"
+                 "   %s graph\n\n")
+
+    rst += (graph_rst % (label, parent_directory, title))
+
+    return rst
+
+
+def rst_batt(batt, title):
+    rst = []
+
+    batt.report()
+    batt_report(batt)
+
+    label = fsify(latexify(str(batt)))
+    parent_directory = os.getcwd().split('/')[-1]
+
+    fig_rst = ("\n\n"
+               ".. _%s:\n\n"
+               ".. figure:: %s/%s.pdf\n\n"
+               "   %s\n\n")
+
+    rst += (fig_rst % (label, parent_directory, label, title + ' battery'))
+
+    return rst
 
 
 if __name__ == '__main__':

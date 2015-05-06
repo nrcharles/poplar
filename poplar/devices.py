@@ -191,10 +191,9 @@ class Gateway(Device):
         l: (list) desired load.
         d: (list) delta energy; surplus or shortfall.
         children: (list) devices in domain.
-        net_l: (list) enabled load (wH).
-        loss_occurence: (int) loss (wH).
-        surplus: (float) total excess energy (wH).
-        shortfall: (float) total energy shortfall (wH).
+        net_l: (list) enabled load (Wh).
+        loss_occurence: (int) loss (Wh).
+        shortfall: (float) total energy shortfall (Wh).
     """
 
     def __init__(self, children=None, merit=None):
@@ -242,15 +241,24 @@ class Gateway(Device):
         # g_ave = sum(self.g)/len(self.g)
         # todo: this could be improved
         net_l = 0.
-        capacity = 0.
 
         for node in self.network.neighbors(self):
             if hasattr(node, 'dmnd') and type(node) is not Gateway:
                 # net_l += np.median(node.dmnd.values())
                 net_l += abs(np.mean(node.dmnd.values()))
+        return self.domain_capacity() / net_l
+
+    def max_load(self, intervals=48):
+        demand = self.log_dict_to_list('demand')
+        l_max = min([sum(demand[i:i+intervals]) for i in range(len(demand)-intervals)])
+        return l_max
+
+    def domain_capacity(self):
+        capacity = 0
+        for node in self.network.neighbors(self):
             if hasattr(node, 'nominal_capacity'):
                 capacity += node.nominal_capacity
-        return capacity / net_l
+        return capacity
 
     def report(self):
         return multi_report(self, str(self))
@@ -275,7 +283,7 @@ class Gateway(Device):
 
         return net_l/g
 
-    def capacity(self):
+    def total_capacity(self):
         """Total capacity of energy storage."""
         return self.parameter('capacity')
 
@@ -304,31 +312,32 @@ class Gateway(Device):
     def details(self):
         """Create dict of metrics."""
         results = {
-            'Demand (wh)': significant(sum(self.log_dict_to_list('demand'))),
-            'Net (wh)': significant(sum(self.log_dict_to_list('balance'))),
-            'Domain Sources(wh)':
+            'Demand (Wh)': significant(sum(self.log_dict_to_list('demand'))),
+            'Net (Wh)': significant(sum(self.log_dict_to_list('balance'))),
+            'Domain sources (Wh)':
                 significant(sum(self.log_dict_to_list('source'))),
-            'Domain credits(wh)':
+            'Domain credits (Wh)':
                 significant(sum(self.log_dict_to_list('credits'))),
-            'Domain debits(wh)':
+            'Domain debits (Wh)':
                 significant(sum(self.log_dict_to_list('debits'))),
-            'Domain Generation losses (wh)':
+            'Domain Generation losses (Wh)':
             significant(self.parameter('losses')),
             'Autonomy (hours) (mean load/C)': significant(self.autonomy()),
+            '%s hour max load' % 48: significant(self.max_load(48)),
             # 'Capacity Factor (%)': significant(self.capacity_factor()*100.),
             'Domain surplus (Wh)': significant(self.surplus()),
             # 'Domain Generation (Wh)': significant(sum(self.g)),
             'Domain Parts (USD)': significant(self.cost()),
             'Domain depletion (USD)': significant(self.depletion()),
-            'Domain lolh (hours)': significant(self.lolh),
+            'Domain LOLH (hours)': significant(self.lolh),
             'Domain outages (n)': significant(sum(self.outage.values())),
-            'Domain shortfall (wH)': significant(self.shortfall),
+            'Domain shortfall (Wh)': significant(self.shortfall),
             'A (m2)': significant(self.parameter('area')),
             # 'Toxicity (CTUh)': significant(self.tox()),
             'CO2 (kgCO2 eq)': significant(self.co2()),
             'Domain Efficiency (%)': significant(self.eta()*100),
             '%s' % str(self.system_merit): significant(self.merit()),
-            'STC (w)': self.STC()
+            'STC (W)': self.STC()
         }
         return results
 
@@ -376,7 +385,7 @@ class Gateway(Device):
         source_domain = self.dest_gateway(offer.obj_id)
         source_domain.debits[key] -= delta
         source_domain.balance[key] -= delta
-        logger.info('%s: Transfered %s wH from %s toward %s wH in %s',
+        logger.info('%s: Transfered %s Wh from %s toward %s Wh in %s',
                     key, delta, source, bid.wh, dest)
         return True
 
@@ -386,7 +395,7 @@ class Gateway(Device):
         node = self.find_node(bid.obj_id)
         # initial_demand = node.needsenergy()
         initial_demand = self.demand[key]
-        logger.debug("New auction %s for %s wH", key, initial_demand)
+        logger.debug("New auction %s for %s Wh", key, initial_demand)
         offer = low_offer(self.network, bid)
         while offer and node.needsenergy():
             logger.debug('High bid %s, Low Offer %s', bid, offer)
@@ -419,7 +428,7 @@ class Gateway(Device):
             hours (float):
 
         Returns:
-            (float): net energy surplus or shortfall (wH).
+            (float): net energy surplus or shortfall (Wh).
 
         """
         self.hours.append(hours)

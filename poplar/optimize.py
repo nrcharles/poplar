@@ -6,7 +6,6 @@ for a location.
 """
 
 import environment as env
-import copy
 import logging
 logging.basicConfig(level=logging.ERROR)
 from devices import Gateway
@@ -51,7 +50,7 @@ class Case(object):
         """Model a year of data for a location.
 
         Args:
-            parameters: (tuple) capacity (wH), PV Size (STC).
+            parameters: (tuple) capacity (Wh), PV Size (STC).
 
         Returns:
             (domain): results from model.
@@ -67,16 +66,12 @@ class Case(object):
         SHS = Gateway([load,
                       self.cc([SimplePV(pv, plane)]),
                       IdealStorage(size)])
-        print SHS.network.nodes()
+
         for r in eere.EPWdata('418830'):
             env.update_time(r['datetime'])
             SHS()
-        print load.enabled()
-        print sum(load.balance.values())
-        print id(load)
-        d = SHS.details()
-        print 'id', id(SHS)
-        print d
+
+        print SHS.details()
         self.foo.write('%s,%s,%s\n' % (size, pv, SHS.merit()))
         self.foo.flush()
         return SHS
@@ -103,9 +98,6 @@ def mppt(load, merit):
     # initial guess
     x0 = np.array([100., 60.])
 
-    # minimizer_kwargs={'method':'SLSQP','options':{'disp':True}})
-    # r = optimize.basinhopping(case1, x0, disp=True, stepsize=1.0,
-    #    minimizer_kwargs={'method':'SLSQP'})
     r = optimize.minimize(case1, x0,  options={'disp': True},
                           bounds=[[5, None],
                           [5, None]], method='SLSQP')

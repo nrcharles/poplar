@@ -17,12 +17,12 @@ class Counter(object):
 def latexify(s):
     s = s.replace('%', '\\%')
     s = s.replace('$', '\\$')
-    s = s.replace('.', '_')
     return s
 
 def fsify(s):
     s = s.replace(' ', '_')
     s = s.replace(',', '')
+    s = s.replace('.', '_')
     return s.lower()
 
 def heatmap(list_like):

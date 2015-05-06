@@ -47,6 +47,42 @@ class LolhMerit(object):
         return 'lolh_%s' % self.lolhcost
 
 
+
+class DesignMerit(object):
+
+    """Social Technology Economic Environmental Political (STEEP) Design merit."""
+
+    def __init__(self, life=5.):
+        self.life = life
+
+    def merit(self, domain):
+        """Social Technology Economic Environmental Political (STEEP) merit.
+
+        Smaller values are indicate higher merit M.
+
+        .. math:: M = \\text{C} + y\\cdot \\text{D} + I_{m} + y\\cdot I_{P} + r\\cdot p
+
+        Where C is the cost of the system hardware parts, y is years, D is
+        depletion expense, Im is manufacturing environment impact, Ip is
+        environment impact from prospective system use, and r is a weighted
+        performance based penalty.  In this case I is (kg CO2 eq) and r
+        is (Wh * domain_r).
+        """
+        total = (domain.cost() +
+                 domain.depletion()*self.life +
+                 domain.co2() +
+                 domain.parameter('emissions')*self.life -
+                 domain.rvalue())
+
+        logging.debug('merit %s', total)
+        return total
+
+    __call__ = merit
+
+    def __repr__(self):
+        return 'STEEP Merit (%s year life)' % self.life
+
+
 class STEEPMerit(object):
 
     """Social Technology Economic Environmental Political (STEEP) merit."""
@@ -65,12 +101,13 @@ class STEEPMerit(object):
         depletion expense, Im is manufacturing environment impact, Ip is
         environment impact from prospective system use, and r is a weighted
         performance based penalty.  In this case I is (kg CO2 eq) and r
-        is (wH * domain_r).
+        is (Wh * domain_r).
         """
         total = (domain.cost() +
                  domain.depletion()*self.life +
-                 domain.co2() +
-                 domain.parameter('emissions')*self.life -
+                 (domain.surplus() + domain.parameter('losses')) * self.life/1000. +
+                 (domain.co2() +
+                 domain.parameter('emissions')*self.life ) / domain.area() -
                  domain.rvalue())
 
         logging.debug('merit %s', total)
