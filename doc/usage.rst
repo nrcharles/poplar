@@ -35,7 +35,7 @@ Multi Domain Code
 
 A multiple domain system is described, energy exporting boundaries are set and devices are given energy priorities.
 
-.. literalinclude:: case5/case.py
+.. literalinclude:: case2a/case.py
     :pyobject: system
 
 
