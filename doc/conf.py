@@ -190,10 +190,12 @@ latex_elements = {
 #'papersize': 'letterpaper',
 
 # The font size ('10pt', '11pt' or '12pt').
+'babel': '\\usepackage[english]{babel}',
+'classoptions': ',oneside',
 'pointsize': '12pt',
 
 # Additional stuff for the LaTeX preamble.
-#'preamble': '',
+'preamble': '\setcounter{page}{127}',
 }
 
 # Grouping the document tree into LaTeX files. List of tuples
