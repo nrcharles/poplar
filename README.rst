@@ -3,6 +3,8 @@
 poplar
 ======
 
+poplar is a python library to optimize microgrid sizing using multi criteria decision analysis. It is currently focused simulating off grid photovoltaic systems in the time domain.
+
 .. image:: https://github.com/nrcharles/poplar/raw/master/doc/mult.png
 
 License
