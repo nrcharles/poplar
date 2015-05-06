@@ -1,11 +1,7 @@
 # Copyright (C) 2015 Nathan Charles
 #
 # This program is free software. See terms in LICENSE file.
-"""Typical Loads.
-
-This Module contains various example loads.
-
-"""
+"""Typical Load module with various example loads."""
 import environment as env
 import csv
 import datetime
@@ -68,14 +64,13 @@ class Load(Device):
         if key not in self.balance:
             dmnd = self.demand(key)
             self.balance[key] = dmnd
-            self.dmnd[key] = dmnd
         return self.balance[key]
 
     def power_io(self, energy):
         """Energy transfer.
 
         Args:
-            energy (float): in wH.
+            energy (float): in Wh.
 
         Returns: i
             (float): energy still needed.
@@ -156,7 +151,9 @@ class Annual(Load):
         """
         mdt = datetime.date(self.year, dt.month, dt.day)
         offset = int(round(dt.hour*2.0))
-        return -self.data[mdt][offset]*self.mult/40812.5
+        dmnd = -self.data[mdt][offset]*self.mult/40812.5
+        self.dmnd[env.time] = dmnd
+        return dmnd
 
     __call__ = demand
 
@@ -185,7 +182,7 @@ class FanLoad(Load):
     """Fan Load.
 
     Atributes:
-        wattage (float): in negative wH.
+        wattage (float): in negative Wh.
         thermostat (float): setting fan turns on in (C).
         per_kwh (float): value of kWh.
     """
@@ -206,7 +203,7 @@ class FanLoad(Load):
         self.interval = 24*265.
 
     def demand(self, key):
-        """Demand returns (float) wH energy demand for (key)."""
+        """Demand returns (float) Wn energy demand for (key)."""
         if key not in self.dmnd:
             if float(env.weather[key]["Dry-bulb (C)"]) > self.thermostat:
                 self.dmnd[key] = self.wattage
@@ -229,7 +226,7 @@ class LightingLoad(Load):
     """Lighting Load.
 
     Atributes:
-        wattage (float): in negative wH.
+        wattage (float): in negative Wh.
         lux (float): setting lux
         hour (float): do not turn on before this hour.
         per_kwh (float): value of kWh.
@@ -252,7 +249,7 @@ class LightingLoad(Load):
         self.interval = 24*265.
 
     def demand(self, key):
-        """Demand returns (float) wH energy demand for (key)."""
+        """Demand returns (float) Wh energy demand for (key)."""
         if key not in self.dmnd:
             if float(env.weather[key]["DFIL (lux)"]) < self.lux and \
                     env.time.hour > self.hour:
@@ -286,7 +283,7 @@ class DailyLoad(Load):
 
         Args:
             hours (list): of times (float) in hours.
-            loads (list): of total loads at hour (float) wH.
+            loads (list): of total loads at hour (float) Wh.
             kind  (str): interpolation method default (cubic).
             name (str):
         """
@@ -301,9 +298,14 @@ class DailyLoad(Load):
         self.dmnd = {}
         self.interval = 24.
 
-    def demand(self, dt):
-        """Return (float) energy demand wH for (datetime)."""
-        return self.profile(dt.hour + dt.minute/60.)
+    def demand(self, key):
+        """Return (float) energy demand Wh for (datetime)."""
+
+        if key not in self.dmnd:
+            dmnd = self.profile(key.hour + key.minute/60.)
+            self.dmnd[key] = float(dmnd)
+
+        return self.dmnd[key]
 
     def total(self):
         return sum([self(hour_to_dt(i)) for i in range(24)])
@@ -311,7 +313,7 @@ class DailyLoad(Load):
     __call__ = demand
 
     def __repr__(self):
-        return "%s %s, %s wH Daily" % (self.name, self.small_id,
+        return "%s %s, %s Wh Daily" % (self.name, self.small_id,
                                        round(self.total(), 1))
 
 times = np.array(range(0, 49))/2.
