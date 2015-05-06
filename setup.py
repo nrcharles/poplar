@@ -19,9 +19,10 @@ setup(
     version="%s.%s.%s.%s" % (MAJOR, NOW.month, NOW.day, NOW.hour),
     author="Nathan Charles",
     author_email="ncharles@gmail.com",
-    description=("solar microgrid time domain optimization library"),
+    # python framework to optimize microgrid sizing using multi-criteria decision analysis
+    description=("multi-criteria microgrid optimization framework"),
     license="AGPL",
-    keywords="Solar Photovoltaic PV microgrid",
+    keywords="Photovoltaic PV Solar microgrid off-grid",
     url="https://github.com/nrcharles/poplar",
     packages=find_packages(),
     long_description=read('README.rst'),
